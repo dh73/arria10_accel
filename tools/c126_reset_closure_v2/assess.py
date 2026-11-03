@@ -94,22 +94,34 @@ def ddr(path):
     for panel, rows in data.items():
         if not rows:
             continue
-        indices = [i for i, name in enumerate(rows[0]) if
-                   "slack" in norm(name) or "margin" in norm(name) or
-                   norm(name) in {"setup", "hold", "recovery", "removal"}]
+        header = [norm(name) for name in rows[0]]
+        budget = header == ["operation", "margin"]
+        indices = [i for i, name in enumerate(header) if
+                   "slack" in name or name in {"setup", "hold", "recovery", "removal"}]
+        need(budget or indices, f"Unknown DDR table schema in {panel}: {rows[0]}")
+        final_count = 0
         for row in rows[1:]:
+            need(len(row) == len(header), f"Ragged DDR table in {panel}")
             need(not any(c.strip().upper() in {"FAIL", "FAILED", "NAN"} for c in row),
                  f"Vendor DDR reports failure/NaN: {panel}: {row}")
-            for i in indices:
-                if i >= len(row):
-                    continue
+            final = budget and norm(row[0]).startswith("final") and norm(row[0]).endswith("margin")
+            for i in ([1] if budget else indices):
                 text = row[i].strip()
-                if text.upper() in {"N/A", "NA", "--", ""}:
+                if not budget and text.upper() in {"N/A", "NA", "--", ""}:
                     continue
                 match = re.fullmatch(r"([+-]?(?:\d+(?:\.\d*)?|\.\d+))(?:\s*ns)?", text)
                 need(match is not None, f"Unknown DDR slack encoding {text!r} in {panel}")
-                need(float(match[1]) >= 0, f"DDR timing failure: {panel}: {row}")
-                checks += 1
+                value = float(match[1])
+                need(abs(value) < float("inf"), f"Non-finite DDR value in {panel}")
+                # Budget components are signed contributions, not timing slack.
+                # The final margin and every reported path slack must pass.
+                if not budget or final:
+                    need(value >= 0, f"DDR timing failure: {panel}: {row}")
+                    checks += 1
+            if final:
+                final_count += 1
+        if budget:
+            need(final_count == 1, f"Expected exactly one final DDR margin in {panel}")
     need(checks > 0, f"No numeric vendor DDR slack checks parsed in {path}")
     return data
 

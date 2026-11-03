@@ -91,6 +91,37 @@ class ComparatorControls(unittest.TestCase):
             self.check()
 
 
+class DdrBudgetControls(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / 'ddr.jsonl'
+
+    def check(self, rows):
+        records = [{"panel": "DQS Gating", "row": i, "cells": row}
+                   for i, row in enumerate(rows)]
+        self.path.write_text("".join(json.dumps(row) + "\n" for row in records))
+        return assess.ddr(self.path)
+
+    def test_signed_component_with_positive_final_margin(self):
+        self.check([["Operation", "Margin"], ["Memory Calibration", "-0.132"],
+                    ["Final DQS Gating Margin", "1.229"]])
+
+    def test_negative_final_margin_refused(self):
+        with self.assertRaisesRegex(RuntimeError, "DDR timing failure"):
+            self.check([["Operation", "Margin"], ["Final DQS Gating Margin", "-0.001"]])
+
+    def test_missing_or_duplicate_final_margin_refused(self):
+        for finals in ([], [["Final DQS Gating Margin", "1.229"]] * 2):
+            with self.assertRaisesRegex(RuntimeError, "exactly one final"):
+                self.check([["Operation", "Margin"], ["Memory Calibration", "-0.132"]] + finals)
+
+    def test_non_numeric_budget_component_refused(self):
+        with self.assertRaisesRegex(RuntimeError, "Unknown DDR slack encoding"):
+            self.check([["Operation", "Margin"], ["Memory Calibration", "unknown"],
+                        ["Final DQS Gating Margin", "1.229"]])
+
+
 class RetainedSdcControls(unittest.TestCase):
     def setUp(self):
         import tkinter

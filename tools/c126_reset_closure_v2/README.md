@@ -6,11 +6,15 @@ verified synchronous data pin. Hard-IP reset obligations remain unresolved.
 
 The package contains a source-bound staging driver, pin/arc diagnostics, scoped
 constraints, timing comparison, a soft-counter testbench and negative controls.
-Twenty-two package checks pass. The unmodified generated soft calibration
+Twenty-six package checks pass. The unmodified generated soft calibration
 counter and synchronizer pass a 37-edge RTL test covering sampled assertion and
 deassertion, an ignored between-edge pulse, calibration completion and reset.
 This validates deterministic sampling, not metastability or hard-IP reset safety.
-Native timing validation remains pending.
+Baseline diagnostics and retained internal/DDR checks pass across four timing
+corners after report-database alignment and signed-budget parsing. No candidate
+constraint has yet passed the before/after comparison; overall closure remains
+open. Signed budget contributions are parsed separately from final margins and
+path slacks, which must remain nonnegative.
 
 ## Fitted reset connectivity
 
