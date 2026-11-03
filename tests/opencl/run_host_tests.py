@@ -60,7 +60,7 @@ r,_=run('count-device-overflow',{},1)
 assert 'exceed reported' in r.stderr
 for index,suffix in enumerate((['--count'],['--streaming'],['--count','1','--count','2'],['--unknown'])):
     command[:]=stream_command+suffix
-    run('invalid-options-'+str(index)),{},1)
+    run('invalid-options-'+str(index),{},1)
 for label,count,env,expected in [('allocation-equal',16,{'SMALL_ALLOC':'1'},0),('allocation-over',17,{'SMALL_ALLOC':'1'},1),('aggregate-below',5,{'SMALL_MEMORY':'1'},0),('aggregate-over',6,{'SMALL_MEMORY':'1'},1)]:
     command[:]=stream_command+['--count',str(count)]
     run(label,env,expected)
