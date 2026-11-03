@@ -58,3 +58,12 @@ four accepted offers. The adapted connection passed 192 distinct descriptors,
 counts. Seven input hashes and both native logs were checked. Existing producer
 literal-width, RAM-port and metadata-count-width warnings remain recorded; this
 result is not a blanket warning waiver. Full-controller integration remains open.
+
+The prepared `controller_ingress_tb.sv` composition replaces the synthetic offer
+source with the actual write controller. It configures descriptor-table fetching
+through CSRs, supplies 48 distinct descriptors through DTS, and checks all native
+FIFO pops and memory commands while the native producer applies backpressure.
+Run with both `--controller` and `--controller-tx` pointing to the source-pinned
+v4 controller and its include. Compatible model files are explicit inputs.
+This composition is prepared but not yet qualified; its memory-return and
+metadata-consumer fixtures still exclude packetization and host retirement.
