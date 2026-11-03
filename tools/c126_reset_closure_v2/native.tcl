@@ -5,6 +5,7 @@ namespace eval ::c126 {}
 if {[llength $::quartus(args)] != 1} { error "Expected one generated config.tcl" }
 source [lindex $::quartus(args) 0]
 source [file join $::c126::package diag.tcl]
+source [file join $::c126::package path_guard.tcl]
 
 proc ::c126::j {value} {
     return "\"[string map [list \\ \\\\ \" \\\" \n \\n \r \\r \t \\t] $value]\""
@@ -184,9 +185,9 @@ proc ::c126::main {} {
     # Validate top-level SDC path containment. Nested includes are a caller
     # prerequisite of the copied project; this is not a general Tcl sandbox.
     foreach filename [get_default_sdc_file_names] {
-        set parts [file split [file normalize $filename]]
-        if {[lrange $parts 0 [expr {[llength $rootparts]-1}]] ne $rootparts} {
-            error "Top-level SDC path escapes the isolated copied project: $filename"
+        set copied [check_default_sdc $filename $root $::c126::baseline]
+        if {[file normalize $filename] ne $copied} {
+            post_message -type info "C126 retained generated SDC is byte-identical to copied constraint: $filename -> $copied"
         }
     }
     read_sdc

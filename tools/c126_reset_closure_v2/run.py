@@ -88,7 +88,7 @@ def stage(args):
     verify_sources(work / "project", sources)
     shutil.copytree(HERE, work / "package", ignore=shutil.ignore_patterns("__pycache__"))
     hashes[args.revision + ".qsf"] = digest(qsf)
-    state = {"packet_sha256": PACKET_SHA, "project": args.project,
+    state = {"packet_sha256": PACKET_SHA, "baseline": str(root), "project": args.project,
              "revision": args.revision, "sources": hashes, "assessment": assessment}
     (work / "c126.json").write_text(json.dumps(state, indent=2) + "\n")
     print(f"Isolated retained project: {work / 'project'}")
@@ -135,6 +135,7 @@ def analyze(args):
     (out / "version.txt").write_text(version)
     values = {"root": work / "project", "project": state["project"], "revision": state["revision"],
               "out": out, "package": work / "package", "mode": args.mode,
+              "baseline": state["baseline"],
               "soft": SOFT, "packet_verified": 1,
               "status_observation_only": int(args.status_observation_only)}
     config = "namespace eval ::c126 {}\n"

@@ -91,6 +91,45 @@ class ComparatorControls(unittest.TestCase):
             self.check()
 
 
+class RetainedSdcControls(unittest.TestCase):
+    def setUp(self):
+        import tkinter
+        self.t = tkinter.Tcl()
+        self.t.call('source', str(Path(__file__).with_name('path_guard.tcl')))
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name) / 'baseline'
+        self.copy = Path(self.temp.name) / 'copy'
+        for root in (self.base, self.copy):
+            (root / 'qdb').mkdir(parents=True)
+            (root / 'qdb/default.sdc').write_bytes(b'create_clock -period 10 [get_ports clk]\n')
+        self.source = self.base / 'qdb/default.sdc'
+
+    def check(self, path=None):
+        return self.t.call('::c126::check_default_sdc', str(path or self.source),
+                           str(self.copy), str(self.base))
+
+    def test_byte_identical_retained_generated_constraint(self):
+        self.assertEqual(self.check(), str(self.copy / 'qdb/default.sdc'))
+
+    def test_changed_constraint_refused(self):
+        (self.copy / 'qdb/default.sdc').write_text('changed')
+        with self.assertRaisesRegex(Exception, 'content differs'): self.check()
+
+    def test_missing_counterpart_refused(self):
+        (self.copy / 'qdb/default.sdc').unlink()
+        with self.assertRaisesRegex(Exception, 'counterpart'): self.check()
+
+    def test_prefix_collision_and_external_file_refused(self):
+        for path in (str(self.base) + '-other/qdb/default.sdc',
+                     self.base / 'other.sdc', self.base / 'qdb/tool.py'):
+            with self.assertRaisesRegex(Exception, 'outside'): self.check(path)
+
+    def test_local_constraint_keeps_original_path(self):
+        path = self.copy / 'qdb/default.sdc'
+        self.assertEqual(self.check(path), str(path))
+
+
 class TclControls(unittest.TestCase):
     def setUp(self):
         try:
