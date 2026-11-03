@@ -33,3 +33,24 @@ C126 must retain its separate reset-release qualification: external reset
 pulse and clock-stability requirements, hard-IP reset contract, and applicable
 timing checks. Neither the combinational merge nor the broad false path is
 adopted as a closure repair. The preserved C126 project is unchanged.
+
+## External reset selection
+
+The E3.1 schematic distinguishes the two project assignments:
+
+| Project port | FPGA pin | Schematic net | Push button | Pull-up |
+| --- | --- | --- | --- | --- |
+| C126 `global_reset_reset_n[0]` | U11 | USER_PB2 | S1 | R7, 10 kOhm to 1.8 V |
+| Reference `cpu_resetn` | BD27 | CPU_RESETn | S4 | R10, 10 kOhm to 1.8 V |
+
+FPGA connections are on schematic sheets 6 and 7; switches and pull-ups are
+on sheet 24. Each switch shorts its net to ground when pressed. CPU_RESETn
+also reaches the MAX V on sheet 13. That connection alone does not establish
+the MAX V image's reset behavior.
+
+U11 is therefore a documented user-button route in this reference board,
+rather than an alias for CPU_RESETn. Operating instructions must name S1 for
+the preserved C126 assignment. Moving to S4 requires an explicit constraint
+change and requalification. Neither switch circuit establishes power-on reset,
+debounce, minimum pulse duration or clock-qualified release. Installed-board
+revision and physical connectivity remain to be confirmed.
