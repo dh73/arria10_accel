@@ -20,7 +20,7 @@ Each unstalled stream completes 257 commands in 258 cycles. The 512-bit case
 transports 16,448 line bytes and enables 10,976 bytes under the mixed-mask
 workload. This establishes command throughput in the zero-latency backend
 fixture, not full-mask peak bandwidth. No physical throughput or compiler-wide-port
-support is established. Mixed traffic, per-response wide ECC testing, compiler-port binding,
+support is established. Compiler-port binding,
 CDC/timing, real memory arbitration and hardware measurements remain required.
 
 ## Reproduce a width test
@@ -53,6 +53,19 @@ measurements do not establish physical memory latency or achievable clock rate.
 The same runs check a stalled write remains held through quiesce and a backend
 ECC interrupt, drains exactly once after acceptance, retains the sticky fault,
 and rejects a misaligned request with its address context after coordinated reset.
-Per-response ECC, mixed traffic and physical reset behavior remain separate gates.
+Physical ECC injection and reset behavior remain separate gates.
 Use the reproduction command above with top `width_stress_tb`, parameter
 `width_stress_tb.W`, and `stress_tb.sv`; require `WIDTH_STRESS_PASS width=...`.
+
+## Mixed traffic and response ECC
+
+`mixed_tb.sv` passes three streams at each width: unstalled, backpressured, and
+backpressured with an ECC error on the final owned response. Each stream admits
+257 ordered commands and returns all 86 reads. Checks cover byte mapping,
+response order, exact ECC address context, sticky fault, blocked new admission
+and complete drain. The address-dependent backend is a fixture, not a shared
+memory coherence or physical ECC test. Error arrival earlier in a live stream
+and reset with outstanding wide responses remain additional stress cases.
+
+Select top `width_mixed_tb`, parameter `width_mixed_tb.W` and `mixed_tb.sv` in
+the reproduction command; require `WIDTH_MIXED_PASS width=...`.
