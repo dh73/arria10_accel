@@ -84,6 +84,40 @@ theorem ddr_line_address_fits (address : Nat) (inside : address < 2^31) :
     address / 64 < 2^25 ∧ address % 64 < 64 := by
   omega
 
+/-- Ordered subtraction checks from the raw PIO window path. Alignment and
+    register ownership are separate obligations; this models only bounds. -/
+def WindowRange (capacity segment offset bytes : Nat) : Prop :=
+  segment ≤ capacity ∧ offset ≤ capacity - segment ∧
+    bytes ≤ capacity - segment - offset
+
+theorem window_guard_iff_endpoint (capacity segment offset bytes : Nat) :
+    WindowRange capacity segment offset bytes ↔
+      segment + offset + bytes ≤ capacity := by
+  unfold WindowRange
+  omega
+
+theorem window_access_inside (capacity segment offset bytes index : Nat)
+    (h : WindowRange capacity segment offset bytes) (hi : index < bytes) :
+    segment + offset + index < capacity := by
+  have bound := (window_guard_iff_endpoint capacity segment offset bytes).mp h
+  omega
+
+theorem window_endpoint_fits (capacity segment offset bytes : Nat)
+    (hc : capacity < 2^64) (h : WindowRange capacity segment offset bytes) :
+    segment + offset + bytes < 2^64 := by
+  have bound := (window_guard_iff_endpoint capacity segment offset bytes).mp h
+  omega
+
+/-- Global address conversion uses quotient/remainder by the 64 KiB window.
+    A contained original request has an equally contained translated access. -/
+theorem translated_window_range (capacity address bytes : Nat)
+    (h : ValidRange capacity address bytes) :
+    WindowRange capacity ((address / 65536) * 65536) (address % 65536) bytes := by
+  apply (window_guard_iff_endpoint _ _ _ _).mpr
+  have decomposition := Nat.mod_add_div address 65536
+  have bound := (guard_iff_sum capacity address bytes).mp h
+  omega
+
 end AsusA10
 
 #print axioms AsusA10.guard_iff_sum
@@ -96,3 +130,7 @@ end AsusA10
 #print axioms AsusA10.descriptor_subrange
 #print axioms AsusA10.cursor_base
 #print axioms AsusA10.cursor_step
+#print axioms AsusA10.window_guard_iff_endpoint
+#print axioms AsusA10.window_access_inside
+#print axioms AsusA10.window_endpoint_fits
+#print axioms AsusA10.translated_window_range
