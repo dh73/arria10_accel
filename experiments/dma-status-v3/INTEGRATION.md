@@ -113,3 +113,11 @@ a descriptor-table consumer. The new ports expose the missing interface,
 without supplying that consumer or authorizing a constant-ready connection.
 Existing frozen parent elaboration predates these added ports and cannot
 qualify them.
+
+The frozen configured parent, before fetch-valid/data exposure, elaborates with
+its complete device hierarchy and unchanged parameter block. All 97 retained
+source/model files match their compile snapshot. Diagnostics include 29 port
+width mismatches, 49 too-few-port lint messages, un-driven implicit wires and
+a model select-out-of-bounds warning. These remain behavioral/connectivity
+obligations; successful elaboration does not dismiss them. This result does
+not qualify the later fetch-port additions or establish simulation acceptance.
