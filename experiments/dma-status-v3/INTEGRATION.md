@@ -17,6 +17,14 @@ generates the matching application wrapper. It retains `Rstn_i[6]`, the
 existing disabled control-load input, and the complete write-mover/downstream
 logic. Completer-only mode drives the added outputs inactive.
 
+The application candidate elaborates with its retained hierarchy at default
+parameters. Width warnings remain: FIFO occupancy narrowing, the predecoded
+tag's ninth bit, write-reset vector truncation, and write/CRA interface widths.
+These require exact-configuration and reachable-range validation before
+behavioral acceptance. In particular, a depth-16 FIFO exposes a five-bit count;
+a four-bit consumer would observe zero at occupancy 16 if that state is reached.
+Elaboration alone does not prove the flow-control invariant excludes it.
+
 The parent must connect these new channels directly alongside the existing
 status data/valid path:
 
