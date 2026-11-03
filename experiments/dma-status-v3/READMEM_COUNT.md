@@ -26,7 +26,17 @@ zero corrected mismatches. Lean 4.19 establishes sum/count bounds, positive
 count, and minimal covering beat count. These are stateless arithmetic
 results, not RTL refinement or completion-liveness proofs.
 
-This derivative is separate from the unaligned-head validation using the
-unchanged producer. Native qualification must exercise the corrected producer
-at the overflow boundaries and through complete descriptor retirement, then
-combine it with the corrected payload path. Physical acceptance remains open.
+The actual producer count pipeline also passes VCS with forced operand
+registers over all 2097144 combinations. The unchanged producer independently
+reproduces the zero-count overflow. This fixture instantiates the producer and
+its real dependencies; it does not exercise descriptor ingress or retirement.
+The fixture is `tests/readmem_count_tb.sv`.
+
+For combined producer/payload qualification, use `tests/run_unaligned_vcs.py`
+with `--suite native --correct-producer-count` and
+`--sim-arg=+DESCRIPTOR_DWORDS=262143`, plus the input paths documented in
+[UNALIGNED_HEAD.md](UNALIGNED_HEAD.md). The runner derives the correction from
+the exact original source and records both identities. This exercises maximum
+length at every DWORD offset in both half-lines as well as the existing native
+matrix. Full descriptor retirement and physical acceptance remain open until
+their respective results establish them.

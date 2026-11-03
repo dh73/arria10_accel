@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from build_control_wrapper import replace_once
 from build_payload_unaligned import mask_source, transform
+from build_readmem_count import transform as correct_producer_count
 
 MUX_SHA = 'e7d1a716558f273876ae5ec8f98f6a83f98b79e793e5ed07e42eaba3e2f7cb3b'
 PRODUCER_SHA = '9658fce313dc40ea278021747923137a9cad5fc3df344ecc6818e63e010aef54'
@@ -67,6 +68,8 @@ def main() -> int:
     p.add_argument('--payload', required=True, help='exact original or mask candidate, PRIVATE')
     p.add_argument('--mux', required=True, help='exact retained arria10_dma_ddr_mux.sv, PRIVATE')
     p.add_argument('--producer', help='exact altpcieav_dma_wr_readmem_2.sv, PRIVATE')
+    p.add_argument('--correct-producer-count', action='store_true',
+                   help='derive the exact 19-bit count correction for the native suite')
     p.add_argument('--fifo', help='actual altpcie_fifo implementation, PRIVATE; no stub')
     p.add_argument('--quartus-simlib', help='actual eda/sim_lib containing altera_mf.v and 220model.v')
     p.add_argument('--extra-filelist', help='optional actual vendor dependency filelist; absolute paths')
@@ -81,6 +84,8 @@ def main() -> int:
     a = p.parse_args()
     suites = ('witness', 'regression', 'direct', 'native') if a.suite == 'all' else (a.suite,)
     try:
+        if a.correct_producer_count and 'native' not in suites:
+            raise ValueError('--correct-producer-count requires the native suite')
         payload_path, payload_raw = read_source(a.payload, '--payload')
         old_rtl, new_rtl = mask_source(payload_raw), transform(payload_raw)
         mux_path, mux_raw = read_source(a.mux, '--mux', MUX_SHA)
@@ -121,6 +126,12 @@ def main() -> int:
     old.write_text(old_rtl)
     new.write_text(new_rtl)
     mux.write_bytes(mux_raw)
+    if a.correct_producer_count:
+        corrected = build / 'altpcieav_dma_wr_readmem_2_count.sv'
+        corrected.write_bytes(correct_producer_count(producer_raw))
+        dependencies[0] = corrected
+        correction_source = ROOT / 'tools/build_readmem_count.py'
+        inputs[str(correction_source)] = hashlib.sha256(correction_source.read_bytes()).hexdigest()
     wrapper = ROOT / 'rtl' / 'dma_memory_path_unaligned_candidate.sv'
     plans = []
     if 'witness' in suites:
