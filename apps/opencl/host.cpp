@@ -105,12 +105,49 @@ void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel 
            <<" algorithm_GBps="<<(double(algorithm_bytes)/double(elapsed))<<'\n';
   std::cout<<"OPENCL_DEVICE_DATA_PASS count="<<n<<'\n';
 }
+void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
+                cl_kernel triad, cl_uint n) {
+  std::vector<cl_uint> a(n),b(n),out(n);
+  for(cl_uint i=0;i<n;++i){a[i]=i*0x9e3779b1U+0x80000000U;b[i]=~(i*17U);}
+  const size_t bytes=size_t(n)*sizeof(cl_uint);
+  Buffer ba,bb,bo;cl_int error=0;
+  for(auto entry:{&ba,&bb,&bo}){
+    entry->value=clCreateBuffer(context,CL_MEM_READ_WRITE,bytes,nullptr,&error);check(error,"stream buffer");
+  }
+  check(clEnqueueWriteBuffer(queue,ba.value,CL_TRUE,0,bytes,a.data(),0,nullptr,nullptr),"stream write a");
+  check(clEnqueueWriteBuffer(queue,bb.value,CL_TRUE,0,bytes,b.data(),0,nullptr,nullptr),"stream write b");
+  cl_mem copy_args[]={ba.value,bo.value},triad_args[]={ba.value,bb.value,bo.value};
+  for(cl_uint j=0;j<2;++j)check(clSetKernelArg(copy,j,sizeof(cl_mem),&copy_args[j]),"copy buffer arg");
+  check(clSetKernelArg(copy,2,sizeof(n),&n),"copy count");
+  for(cl_uint j=0;j<3;++j)check(clSetKernelArg(triad,j,sizeof(cl_mem),&triad_args[j]),"triad buffer arg");
+  const cl_uint scale=0xfffffffbU;
+  check(clSetKernelArg(triad,3,sizeof(scale),&scale),"triad scale");
+  check(clSetKernelArg(triad,4,sizeof(n),&n),"triad count");
+  for(int pass=0;pass<2;++pass){
+    std::fill(out.begin(),out.end(),0xa5a5a5a5U);
+    check(clEnqueueWriteBuffer(queue,bo.value,CL_TRUE,0,bytes,out.data(),0,nullptr,nullptr),"stream poison");
+    Event event;const size_t one=1;
+    check(clEnqueueNDRangeKernel(queue,pass?triad:copy,1,nullptr,&one,&one,0,nullptr,&event.value),"stream enqueue");
+    check(clEnqueueReadBuffer(queue,bo.value,CL_TRUE,0,bytes,out.data(),1,&event.value,nullptr),"stream readback");
+    check(clFinish(queue),"stream finish");
+    for(cl_uint i=0;i<n;++i){
+      auto expected=pass?static_cast<cl_uint>(std::uint64_t(a[i])+std::uint64_t(b[i])*scale):a[i];
+      if(out[i]!=expected)throw std::runtime_error("Streaming mismatch index="+std::to_string(i));
+    }
+    const auto t=timing(event.value);const std::uint64_t traffic=std::uint64_t(n)*(pass?12:8);
+    std::cout<<"OPENCL_STREAM_DATA_PASS kernel="<<(pass?"triad":"copy")<<" count="<<n
+             <<" elapsed_ns="<<(t.end-t.start)<<" algorithm_bytes="<<traffic
+             <<" algorithm_GBps="<<(double(traffic)/double(t.end-t.start))<<'\n';
+  }
+}
 }
 int main(int argc,char** argv) {
-  if(argc!=5 || std::string(argv[1])!="--physical") {
-    std::cerr<<"usage: "<<argv[0]<<" --physical BINARY EXACT_PLATFORM_NAME EXACT_DEVICE_NAME\n";return 64;
+  if((argc!=5 && argc!=6) || std::string(argv[1])!="--physical" ||
+     (argc==6 && std::string(argv[5])!="--streaming")) {
+    std::cerr<<"usage: "<<argv[0]<<" --physical BINARY EXACT_PLATFORM_NAME EXACT_DEVICE_NAME [--streaming]\n";return 64;
   }
   try {
+    const bool streaming=argc==6;
     std::ifstream input(argv[2],std::ios::binary);
     if(!input) throw std::runtime_error("Cannot open device binary");
     std::vector<unsigned char> binary((std::istreambuf_iterator<char>(input)),{});
@@ -121,6 +158,11 @@ int main(int argc,char** argv) {
     check(clGetDeviceInfo(device,CL_DEVICE_PROFILING_TIMER_RESOLUTION,sizeof(timer_resolution),&timer_resolution,nullptr),"timer resolution");
     if(!timer_resolution) throw std::runtime_error("Invalid profiling timer resolution");
     std::cout<<"profiling_timer_resolution_ns="<<timer_resolution<<'\n';
+    if(streaming){
+      cl_uint alignment_bits=0;
+      check(clGetDeviceInfo(device,CL_DEVICE_MEM_BASE_ADDR_ALIGN,sizeof(alignment_bits),&alignment_bits,nullptr),"buffer alignment");
+      if(alignment_bits<512 || alignment_bits%512)throw std::runtime_error("512-bit buffer alignment not established");
+    }
     Context context;context.value=clCreateContext(nullptr,1,&device,nullptr,nullptr,&error);check(error,"context");
     Queue queue;queue.value=clCreateCommandQueue(context.value,device,CL_QUEUE_PROFILING_ENABLE,&error);check(error,"queue");
     Program program;const unsigned char* data=binary.data();size_t length=binary.size();cl_int binary_status=0;
@@ -137,9 +179,12 @@ int main(int argc,char** argv) {
       check(error,"build binary");
     }
     Kernel first,second;
-    first.value=clCreateKernel(program.value,"correctness_pass1",&error);check(error,"pass1 kernel");
-    second.value=clCreateKernel(program.value,"correctness_pass2",&error);check(error,"pass2 kernel");
-    for(cl_uint n:{1U,3U,17U,257U,4093U,65537U,1000003U})run(context.value,queue.value,first.value,second.value,n);
+    first.value=clCreateKernel(program.value,streaming?"stream_copy512":"correctness_pass1",&error);check(error,"pass1 kernel");
+    second.value=clCreateKernel(program.value,streaming?"stream_triad512":"correctness_pass2",&error);check(error,"pass2 kernel");
+    for(cl_uint n:{1U,3U,17U,257U,4093U,65537U,1000003U}){
+      if(streaming)run_stream(context.value,queue.value,first.value,second.value,n);
+      else run(context.value,queue.value,first.value,second.value,n);
+    }
     return 0;
   } catch(const std::exception& e){std::cerr<<"OpenCL failure: "<<e.what()<<'\n';return 1;}
 }

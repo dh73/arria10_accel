@@ -18,7 +18,7 @@ subprocess.run([a.cxx,'-std=c++17','-O2','-Wall','-Wextra','-Werror','-I'+str(a.
 command=[str(build/'host'),'--physical',str(build/'fixture.bin'),'fixture','fixture-device']
 def run(name,env,expected):
     clean=os.environ.copy()
-    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME'):clean.pop(key,None)
+    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS'):clean.pop(key,None)
     r=subprocess.run(command,env=dict(clean,**env),text=True,capture_output=True)
     (build/(name+'.log')).write_text(r.stdout+r.stderr)
     assert r.returncode==expected,(name,r.returncode,r.stderr)
@@ -36,5 +36,16 @@ for n,byte_count,rate in timings:
 for value in (1,2,3):run(f'bad-time-{value}',{'BAD_TIME':str(value)},1)
 for i in range(1,total+1):run(f'failure-{i}',{'FAIL_AT':str(i)},1)
 for key in ('DUPLICATE','BAD_BINARY','CORRUPT'):run(key.lower(),{key:'1'},1)
-result={'state':'passed','injected_call_failures':total,'extra_failures':['duplicate identity','invalid binary status','corrupt output','zero/reversed/overlapping timing'],'scope':'Synchronous fake runtime, actual host and compiled kernel bodies','real_runtime':False,'physical_acceptance':False}
+command.append('--streaming')
+r,stream_calls=run('stream-success',{},0)
+rows=re.findall(r'OPENCL_STREAM_DATA_PASS kernel=(copy|triad) count=(\d+) elapsed_ns=200 algorithm_bytes=(\d+) algorithm_GBps=([\d.e+-]+)',r.stdout)
+assert len(rows)==14
+for kind,n,byte_count,rate in rows:
+    assert int(byte_count)==int(n)*(8 if kind=='copy' else 12)
+    assert abs(float(rate)-int(byte_count)/200)<=max(1e-6,int(byte_count)/200*1e-5)
+for i in range(1,stream_calls+1):run(f'stream-failure-{i}',{'FAIL_AT':str(i)},1)
+for key in ('DUPLICATE','BAD_BINARY','CORRUPT','BAD_ALIGN'):run('stream-'+key.lower(),{key:'1'},1)
+for value in (1,2):run(f'stream-bad-time-{value}',{'BAD_TIME':str(value)},1)
+for value in (3,4):run(f'stream-corrupt-pass-{value}',{'CORRUPT_PASS':str(value)},1)
+result={'state':'passed','injected_call_failures':total,'streaming_injected_call_failures':stream_calls,'extra_failures':['duplicate identity','invalid binary status','corrupt output','zero/reversed/overlapping timing'],'scope':'Actual host with synchronous fake runtime; compiled correctness bodies and reference streaming arithmetic','real_runtime':False,'physical_acceptance':False}
 (build/'result.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))

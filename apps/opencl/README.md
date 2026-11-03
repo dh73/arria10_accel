@@ -97,9 +97,11 @@ python3 tests/opencl/run_streaming.py --build /tmp/a10-opencl-stream
 
 The host arithmetic fixture checks 70 sizes, every tail residue, five scale
 values, unchanged inputs and boundary guards. It executes the actual compiled
-kernel bodies; it does not exercise an FPGA memory port or runtime. The binary
-host currently launches only `correctness.cl`; streaming host integration is
-still required.
+kernel bodies; it does not exercise an FPGA memory port or runtime. The binary host selects these kernels with the optional `--streaming` argument
+after the exact device name; supply a binary compiled from `streaming.cl`.
+It requires at least 512-bit buffer-base alignment, verifies copy before
+launching triad, and reports each kernel duration and logical byte rate
+separately. Poison writes and readbacks are outside those kernel durations.
 
 Copy algorithm traffic is `8 * count` bytes (one read, one write); triad is
 `12 * count` bytes (two reads, one write). Report rate against actual kernel
@@ -107,3 +109,9 @@ event durations only after numerical validation. These logical byte counts are
 not physical bus counters. A `uint16` expression does not establish a 512-bit
 external master: generated port widths, burst behavior, interconnect arbitration,
 fit/timing and physical counters must qualify the resulting memory path.
+
+The host failure fixture also covers streaming argument layouts, alignment
+rejection, separate copy/triad corruption and every successful-path API call.
+Its streaming execution uses reference arithmetic; `run_streaming.py` separately
+executes the actual vector kernel bodies. Neither fixture establishes runtime
+or physical bandwidth acceptance.
