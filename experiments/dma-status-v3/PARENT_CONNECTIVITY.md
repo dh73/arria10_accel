@@ -69,3 +69,17 @@ line reads, delayed responses and a byte-addressed memory scoreboard. Disabled
 read bytes return unknown data so the test cannot rely on their contents.
 Native qualification is pending. This composition still excludes the HIP,
 descriptor consumer, physical EMIF, CDC constraints and hardware acceptance.
+
+## Unaligned head integration gap
+
+The retained write-memory producer loads the source address directly from its
+descriptor and selects its head state when the low five address bits are
+nonzero. It emits that address unchanged with burstcount one and a head mask.
+The payload adapter instead rejects every address with nonzero low five bits.
+Therefore the aligned-address mask tests do not qualify native unaligned heads.
+`tests/payload_unaligned_witness_tb.sv` checks rejection at offsets 4 through 28
+in both half-lines; native witness qualification is pending. It is a negative
+adapter witness, not an execution of the native producer or a corrected path.
+Direction-specific address normalization, mask validation and aperture checks
+must be resolved before parent-to-memory integration can be accepted. H2D
+descriptor routing and write alignment must not be silently altered to fix D2H.
