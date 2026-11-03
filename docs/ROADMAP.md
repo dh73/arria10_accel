@@ -29,3 +29,12 @@ of stale returns and coordinated reset; these contracts need full-fabric tests.
 The driver enforces DMA/PIO memory apertures and compiles on both host kernels,
 but production admission remains disabled. C126 still lacks overall timing
 closure. Physical acceptance and complete platform support remain outstanding.
+
+## Controller validation correction
+
+Five historical fetch-controller simulation passes are withdrawn: their logs
+contain an unsupported FIFO-model family error that the old result parser
+missed. Requalification uses compatible models and rejects that diagnostic.
+The 24 consumer cases and abstract proof are separate evidence. Older aggregate
+claims of 29 passing cases must not be used until controller requalification is
+accepted. Original review inputs and logs remain preserved.
