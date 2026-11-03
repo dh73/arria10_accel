@@ -136,7 +136,10 @@ proc ::c126::snapshot {phase index hold_only} {
     }
     set tag C126_${phase}_${index}_DDR
     set previous_tables [table_registry]
-    report_ddr -panel_name $tag -file [file join $dir ddr.rpt]
+    # Registered generated report scripts inspect quartus(nameofexecutable)
+    # and other top-level state. Execute them in the native global context,
+    # not this procedure's variable frame; keep their source bytes unchanged.
+    uplevel #0 [list report_ddr -panel_name $tag -file [file join $dir ddr.rpt]]
     panels $tag [file join $dir ddr.jsonl]
     set current_tables [table_registry]
     set unexpected {}
