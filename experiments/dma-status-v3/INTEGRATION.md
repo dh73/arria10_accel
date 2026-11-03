@@ -89,3 +89,12 @@ and eight terminal completions per mode. The highest observed occupancy is
 14 in every case; the producer stops issuing during sustained downstream
 backpressure. This is finite read-producer coverage, not an all-state bound
 or validation with competing RXM/TXS writers.
+
+`tools/build_configured_wrapper.py --source /path/to/pcie_ed_DUT.v --output DIR`
+retains the exact generated parent parameter overrides while replacing its
+parent module with the receipt-connected candidate. It exposes the same eight
+fetch, diagnostic and fault ports. Changed input bytes are rejected. The
+parameter override block is preserved byte-for-byte, including Gen3, 256-bit
+AVMM DMA and the internal controller. This supplies an exact-configuration
+elaboration target; it does not implement the remaining host consumers or
+establish physical board compatibility.
