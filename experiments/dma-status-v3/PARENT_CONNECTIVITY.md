@@ -67,7 +67,10 @@ and the payload's lock preserves burst ownership at the arbiter.
 `tests/memory_path_tb.sv` adds partial writes with gaps, readback, competing
 line reads, delayed responses and a byte-addressed memory scoreboard. Disabled
 read bytes return unknown data so the test cannot rely on their contents.
-Native qualification is pending. This composition still excludes the HIP,
+The composition passes 156 cases: 272 DMA writes, 364 DMA read responses,
+331 competing line reads and 1,176 backend stall cycles. A final 32-KiB byte
+comparison checks enabled writes and preservation of untouched bytes. All eight
+original/copy source pins match. This composition still excludes the HIP,
 descriptor consumer, physical EMIF, CDC constraints and hardware acceptance.
 
 ## Unaligned head integration gap
