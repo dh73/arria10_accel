@@ -20,3 +20,32 @@ It does not exercise an OpenCL runtime, device memory, command events or FPGA
 execution. FPGA compilation, binary loading, event ordering and physical
 readback remain required integration checks. This fixture is not a bandwidth
 benchmark or a complete OpenCL feature-conformance suite.
+
+## Binary host
+
+Build against installed OpenCL headers and the ICD loader:
+
+```sh
+cmake -S apps/opencl -B build/opencl
+cmake --build build/opencl
+```
+
+After board, image and driver readiness have been independently established:
+
+```sh
+build/opencl/a10_opencl_correctness --physical workload.aocx \
+  'exact platform name' 'exact accelerator name'
+```
+
+The host requires a unique exact accelerator match, checks binary status and
+build results, binds the declared kernel arguments, and uses explicit event
+dependencies between the two launches and readback. It checks seven sizes
+against the independent reference. Errors return nonzero; it never substitutes
+source compilation or another device type. Binary loading may configure the
+FPGA through the runtime and must obey the board's programming/recovery gates.
+Device names and numerical success alone do not certify loaded-image identity
+or physical qualification. Host compilation and command-line rejection have
+been checked; runtime and device execution remain unqualified.
+
+API contracts: [binary programs](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html)
+and [kernel dispatch](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueNDRangeKernel.html).

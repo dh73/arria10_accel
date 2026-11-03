@@ -1,6 +1,6 @@
 # Arria 10 accelerator
 
-An Arria 10 GX ES3 PCIe/DDR4 compute platform for SYCL workloads, Linux DMA,
+An Arria 10 GX ES3 PCIe/DDR4 compute platform for SYCL/OpenCL workloads, Linux DMA,
 and board-interface integration. Implementation and hardware qualification are in progress.
 
 ## Source
@@ -10,7 +10,7 @@ and board-interface integration. Implementation and hardware qualification are i
 | `rtl/` | DDR adapter, initialization and platform supervision |
 | `host/`, `include/` | Kernel execution, DMA lifecycle and descriptor interfaces |
 | `drivers/aclpci/` | Linux PCIe driver and fault-injection tests |
-| `apps/` | SYCL workloads and reference results |
+| `apps/` | SYCL/OpenCL workloads and reference results |
 | `tests/` | RTL, host and interface tests |
 | `formal/`, `proof/` | Formal models and proofs |
 | `tools/` | Interface extraction, source transforms and timing checks |

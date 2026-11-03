@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(a10_opencl_correctness LANGUAGES CXX)
+find_package(OpenCL REQUIRED)
+add_executable(a10_opencl_correctness host.cpp)
+target_compile_features(a10_opencl_correctness PRIVATE cxx_std_17)
+target_include_directories(a10_opencl_correctness PRIVATE ../../include)
+target_link_libraries(a10_opencl_correctness PRIVATE OpenCL::OpenCL)
+target_compile_options(a10_opencl_correctness PRIVATE -Wall -Wextra -Werror)
