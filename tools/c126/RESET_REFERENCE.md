@@ -54,3 +54,23 @@ the preserved C126 assignment. Moving to S4 requires an explicit constraint
 change and requalification. Neither switch circuit establishes power-on reset,
 debounce, minimum pulse duration or clock-qualified release. Installed-board
 revision and physical connectivity remain to be confirmed.
+
+## Full-platform reset requirements
+
+The [reference-platform reset architecture](https://docs.altera.com/r/docs/683267/19.1/fpga-sdk-for-opencl-arria-10-gx-fpga-development-kit-reference-platform-porting-guide/resets)
+generates global reset from a free-running configuration clock, combines
+power-on and PCIe reset, and synchronizes reset separately in each receiving
+domain. Both sides of every crossing bridge/FIFO must reset together. A clock
+stopped by its own PLL reset cannot provide the edges needed to propagate a
+synchronous reset. EMIF recalibration uses a separate reset path.
+
+The [calibration mechanism](https://docs.altera.com/r/docs/683267/19.1/fpga-sdk-for-opencl-arria-10-gx-fpga-development-kit-reference-platform-porting-guide/ddr4-calibration)
+detects failed calibration and requests another calibration through dedicated
+logic. This reference behavior is not yet implemented by this platform.
+
+Integration must therefore establish a free-running reset source, coordinated
+crossing resets, and a separately controlled recalibration path after memory
+users are quiesced. These architectural requirements supply neither a numeric
+ES3 reset-pulse minimum nor a recovery/removal exception for C126 hard-IP pins.
+Those timing obligations remain open; no new false path or pulse count is
+justified by these references.
