@@ -7,6 +7,11 @@ passes `DMA_WIDTH` explicitly, and retains the complete write-controller tail
 unchanged. The output directory must be new. Containing-parent wiring and
 native qualification remain outstanding; generation alone is not acceptance.
 
+The generated controller wrapper elaborates with the actual v3 read controller,
+unchanged original write controller and FIFO models. Both reported port-count
+warnings concern the unused FIFO `eccstatus` output; no FIFO input is missing.
+This result covers elaboration only, not handshake behavior or hardware.
+
 `tools/build_app_wrapper.py --source /path/to/altpcieav_256_app.sv --output DIR`
 generates the matching application wrapper. It retains `Rstn_i[6]`, the
 existing disabled control-load input, and the complete write-mover/downstream
