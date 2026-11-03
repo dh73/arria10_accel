@@ -13,7 +13,10 @@ def adapt(path: Path) -> str:
     text = adapt_engine(path)
     text = once(text, 'module read_dma_candidate_v3_tb;',
                 'module read_dma_side_fifo_v3_tb;')
-    text = once(text, 'wire [259:0] tx;', '''wire [259:0] tx, fifo_data;
+    text = once(text, 'int target_count = 0, accepted_desc = 0, cycles = 0;',
+                'int target_count = 0, accepted_desc = 0;')
+    text = once(text, 'wire [259:0] tx;', '''int cycles = 0;
+wire [259:0] tx, fifo_data;
 logic staged_push = 0;
 logic [259:0] staged_data = 0;
 wire [4:0] occupancy;
