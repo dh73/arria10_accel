@@ -28,6 +28,10 @@ class ComparatorControls(unittest.TestCase):
             directory.mkdir(parents=True)
             self.write_ucp(directory, pairs)
             (directory / "clocks.json").write_text('{"active":["ref"]}')
+            self.write_rows(directory / "hard_reset.jsonl", [
+                {"endpoint": e, "entry_pin": e + "|reset_n", "clock": "ref",
+                 "primitive": "test_atom", "kind": kind, "contract": "unresolved", "paths": []}
+                for e in self.expected if e != assess.SOFT for kind in ("recovery", "removal")])
             for kind in ("setup", "hold", "recovery", "removal"):
                 self.write_rows(directory / f"internal_{kind}.jsonl",
                                 [[kind, "r0", "r1", "ref", "ref", "0.25", "10"]])
@@ -60,6 +64,44 @@ class ComparatorControls(unittest.TestCase):
     def test_forbidden_hard_endpoint_removal(self):
         self.write_ucp(self.root / "after/corner_0", self.new[1:])
         with self.assertRaisesRegex(RuntimeError, "Unexpected"):
+            self.check()
+
+    def test_empty_hard_checks_never_close_reset(self):
+        result = self.check()
+        self.assertTrue(result["hard_ip_external_checks_preserved"])
+        self.assertFalse(result["closure_pass"])
+
+    def test_missing_hard_check_rejected(self):
+        path = self.root / "after/corner_0/hard_reset.jsonl"
+        self.write_rows(path, assess.records(path)[1:])
+        with self.assertRaisesRegex(RuntimeError, "Incomplete hard-reset"):
+            self.check()
+
+    def test_changed_hard_pin_or_clock_rejected(self):
+        path = self.root / "after/corner_0/hard_reset.jsonl"
+        original = assess.records(path)
+        for key in ("entry_pin", "clock", "primitive"):
+            rows = json.loads(json.dumps(original))
+            rows[0][key] = "changed"
+            self.write_rows(path, rows)
+            with self.assertRaisesRegex(RuntimeError, "Hard-IP external"):
+                self.check()
+
+    def test_changed_external_removal_path_rejected(self):
+        path = self.root / "after/corner_0/hard_reset.jsonl"
+        rows = assess.records(path)
+        rows[0]["paths"] = [[rows[0]["kind"], assess.RESET, rows[0]["endpoint"],
+                              "launch", "ref", "0.3", "7"]]
+        self.write_rows(path, rows)
+        with self.assertRaisesRegex(RuntimeError, "Hard-IP external"):
+            self.check()
+
+    def test_no_self_declared_hard_contract(self):
+        path = self.root / "after/corner_0/hard_reset.jsonl"
+        rows = assess.records(path)
+        rows[0]["contract"] = "approved"
+        self.write_rows(path, rows)
+        with self.assertRaisesRegex(RuntimeError, "not a vendor"):
             self.check()
 
     def test_new_unconstrained_path(self):

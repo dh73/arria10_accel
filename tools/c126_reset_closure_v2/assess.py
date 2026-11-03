@@ -1,6 +1,7 @@
 """Fail-closed comparison of native C126 endpoint sets and retained checks."""
 from collections import defaultdict
 import json
+import math
 from pathlib import Path
 import re
 
@@ -126,6 +127,33 @@ def ddr(path):
     return data
 
 
+def hard_reset_checks(directory, hold_only, expected):
+    """Preserve external reset checks without mistaking no check for closure."""
+    kinds = {"removal"} if hold_only else {"recovery", "removal"}
+    wanted = {(e, k) for e in expected - {SOFT} for k in kinds}
+    result = {}
+    for row in records(directory / "hard_reset.jsonl"):
+        need(set(row) == {"endpoint", "entry_pin", "clock", "primitive", "kind", "contract", "paths"},
+             "Unexpected hard-reset record schema")
+        key = row["endpoint"], row["kind"]
+        need(key in wanted and key not in result, "Missing/duplicate/foreign hard-reset check")
+        need(row["contract"] == "unresolved", "An observed timing path is not a vendor reset contract")
+        need(all(isinstance(row[k], str) for k in ("endpoint", "entry_pin", "clock", "primitive", "kind")),
+             "Non-text hard-reset identity")
+        need(isinstance(row["paths"], list), "Invalid hard-reset paths")
+        for path in row["paths"]:
+            need(len(path) == 7 and path[0] == row["kind"] and path[1] == RESET and
+                 path[2] == row["endpoint"] and path[4] == row["clock"],
+                 "Wrong source/endpoint/clock in hard-reset path")
+            need(math.isfinite(float(path[5])), "Non-finite hard-reset slack")
+        # A negative path or an empty list stays open; it is not a partial pass
+        # for reset release. Preserve either result exactly in the comparison.
+        row["paths"] = sorted(row["paths"])
+        result[key] = row
+    need(set(result) == wanted, "Incomplete hard-reset recovery/removal matrix")
+    return result
+
+
 def assess(out, baseline, mode, status):
     out = Path(out)
     need((out / "native.complete").read_text().strip() == mode, "Missing matching native completion")
@@ -143,6 +171,7 @@ def assess(out, baseline, mode, status):
         need({p[1] for p in status_pairs(old)} == STATUS,
              f"Baseline does not contain exactly the five status sinks at corner {i}")
         old_paths = checked_paths(before, corner["hold_only"])
+        old_hard = hard_reset_checks(before, corner["hold_only"], expected)
         old_ddr = ddr(before / "ddr.jsonl")
         if mode == "diagnose":
             continue
@@ -154,11 +183,14 @@ def assess(out, baseline, mode, status):
         need((before / "clocks.json").read_text() == (after / "clocks.json").read_text(),
              f"Clock definitions/active clocks changed at corner {i}")
         need(old_paths == checked_paths(after, corner["hold_only"]), f"Internal or synchronizer checks changed at corner {i}")
+        need(old_hard == hard_reset_checks(after, corner["hold_only"], expected),
+             f"Hard-IP external recovery/removal checks changed at corner {i}")
         need(old_ddr == ddr(after / "ddr.jsonl"), f"Vendor DDR reports changed at corner {i}")
         deltas.append({"corner": corner["name"], "reset_before": 22, "reset_after": 21,
                        "status_pairs_before": len(status_pairs(old)),
                        "status_pairs_after": len(status_pairs(new))})
     return {"diagnostic_completed": True, "partial_candidate_checked": mode == "candidate",
+            "hard_ip_external_checks_preserved": mode == "candidate",
             "status_observation_only": status, "closure_pass": False,
             "reason": "21 hard-IP reset endpoint contracts remain unresolved; no physical acceptance claimed",
             "corners": deltas, "remaining_reset_endpoints": sorted(expected - {SOFT})

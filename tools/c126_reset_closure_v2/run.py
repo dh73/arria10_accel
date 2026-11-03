@@ -154,6 +154,10 @@ def analyze(args):
     result = assess(out, state["assessment"], args.mode, args.status_observation_only)
     (out / "assessment.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
+    if args.require_hard_reset_closure:
+        require(result["closure_pass"],
+                "C126 hard-reset closure BLOCKED: exact ES3/26.1 release/clock/pulse-width "
+                "contract for the 21 hard-IP endpoints is unresolved; see README.md")
 
 
 def vcs(args):
@@ -186,6 +190,8 @@ def main():
     a.add_argument("--mode", choices=("diagnose", "candidate"), default="diagnose")
     a.add_argument("--status-observation-only", action="store_true",
                    help="Declare the five status ports untimed indication outputs, without claiming board verification")
+    a.add_argument("--require-hard-reset-closure", action="store_true",
+                   help="Return nonzero after writing the assessment while hard-IP contracts remain open")
     a.add_argument("--quartus-bin", type=Path,
                    default=Path("/home/diego1/work/tools/syn/altera_pro/26.1/quartus/bin"))
     a.set_defaults(function=analyze)

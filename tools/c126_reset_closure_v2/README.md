@@ -6,7 +6,7 @@ verified synchronous data pin. Hard-IP reset obligations remain unresolved.
 
 The package contains a source-bound staging driver, pin/arc diagnostics, scoped
 constraints, timing comparison, a soft-counter testbench and negative controls.
-Twenty-seven package checks pass. The unmodified generated soft calibration
+Thirty-two package checks pass. The unmodified generated soft calibration
 counter and synchronizer pass a 37-edge RTL test covering sampled assertion and
 deassertion, an ignored between-edge pulse, calibration completion and reset.
 This validates deterministic sampling, not metastability or hard-IP reset safety.
@@ -37,3 +37,19 @@ established; the soft-stage exception must not expand to them.
 
 Status outputs remain timed by default. Observation-only treatment is an
 explicit mode and does not establish physical pin or board qualification.
+
+## External hard-reset checks
+
+The collector now records external-input recovery/removal paths for the 21
+hard-IP endpoints, checking their entry pins, primitive types, clocks and live
+asynchronous arcs. All 21 identities match the captured fitted reset graph.
+The assessor requires the returned worst-path matrix to remain identical
+before and after the soft-stage exception. Empty path lists and positive slack
+do not establish the reset-release contract.
+
+`sta --require-hard-reset-closure` saves the assessment and returns failure
+while those contracts remain unresolved. The added collector has local checker
+coverage but has not yet run in native timing analysis; the earlier four-corner
+soft-stage result does not qualify this additional capture. The signed DDR
+budget parser, report-database alignment and canonical pin identity checks
+remain intact. No additional timing exception is installed.

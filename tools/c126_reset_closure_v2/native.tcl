@@ -6,6 +6,7 @@ if {[llength $::quartus(args)] != 1} { error "Expected one generated config.tcl"
 source [lindex $::quartus(args) 0]
 source [file join $::c126::package diag.tcl]
 source [file join $::c126::package path_guard.tcl]
+source [file join $::c126::package hard_reset.tcl]
 
 proc ::c126::j {value} {
     return "\"[string map [list \\ \\\\ \" \\\" \n \\n \r \\r \t \\t] $value]\""
@@ -134,6 +135,7 @@ proc ::c126::snapshot {phase index hold_only} {
         }
         set prev $next
     }
+    ::c126::hard::snapshot $dir $hold_only
     set tag C126_${phase}_${index}_DDR
     set previous_tables [table_registry]
     write_file [file join $dir report_tables_before.tcllist] $previous_tables
