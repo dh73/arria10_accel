@@ -18,8 +18,12 @@ commands fail. Referenced files are listed but never evaluated; this is an
 explicit-assignment comparison, not a complete project elaboration. Existing
 reports are never overwritten.
 
-Seven regression tests cover conflicts, omissions, duplicate mappings, device
-mismatch, unsupported input and source-only acceptance. The retained C126 QSF
+Literal differential negative-leg suffixes, such as `refclk(n)` and
+`clk[0](n)`, are retained as distinct port names. Swapped positive and negative
+pins fail comparison; the tool does not normalize polarity.
+
+Ten regression tests cover conflicts, omissions, duplicate mappings, device
+mismatch, differential polarity, unsupported input and source-only acceptance. The retained C126 QSF
 self-comparison reads 136 explicit pins; it supplies no independent reference.
 
 ```sh

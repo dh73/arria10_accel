@@ -29,7 +29,8 @@ def read_map(path):
             pin, port = words[1], words[3]
             if not re.fullmatch(r'PIN_[A-Z]+[0-9]+', pin):
                 raise ValueError(f'{path}:{line_no}: not an explicit package pin')
-            if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*(?:\[[0-9]+\])?', port):
+            # Keep the negative differential leg distinct; never strip its suffix.
+            if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*(?:\[[0-9]+\])?(?:\(n\))?', port):
                 raise ValueError(f'{path}:{line_no}: unsupported port expression')
             if port in pins or pin in owners:
                 raise ValueError(f'{path}:{line_no}: duplicate port or occupied pin')

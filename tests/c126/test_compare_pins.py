@@ -67,5 +67,26 @@ class PinComparison(unittest.TestCase):
         a = self.parse('set_global_assignment -name QIP_FILE other.qip\n')
         self.assertEqual(a['unevaluated_references'], [{'kind': 'QIP_FILE', 'path': 'other.qip'}])
 
+    def test_differential_polarity_is_preserved(self):
+        a = self.parse('set_location_assignment PIN_F34 -to refclk\n'
+                       'set_location_assignment PIN_F35 -to "refclk(n)"\n')
+        self.assertEqual(a['pins']['refclk(n)'], 'PIN_F35')
+        self.assertTrue(compare(a, a)['source_comparison_pass'])
+        b = dict(a, pins=dict(a['pins'], refclk='PIN_F35'))
+        b['pins']['refclk(n)'] = 'PIN_F34'
+        result = compare(a, b)
+        self.assertFalse(result['source_comparison_pass'])
+        self.assertEqual(len(result['conflicts']), 2)
+
+    def test_negative_leg_of_indexed_port(self):
+        a = self.parse('set_location_assignment PIN_B2 -to {clk[0](n)}\n')
+        self.assertEqual(a['pins']['clk[0](n)'], 'PIN_B2')
+
+    def test_only_literal_negative_leg_suffix_is_supported(self):
+        for port in ['refclk(p)', 'refclk(n)(n)', 'refclk($leg)',
+                     'refclk(n)[0]', 'refclk[exec touch SHOULD_NOT_EXIST](n)']:
+            with self.subTest(port=port), self.assertRaises(ValueError):
+                self.parse(f'set_location_assignment PIN_B2 -to {{{port}}}\n')
+
 
 if __name__ == '__main__': unittest.main()
