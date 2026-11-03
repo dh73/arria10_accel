@@ -7,6 +7,25 @@ passes `DMA_WIDTH` explicitly, and retains the complete write-controller tail
 unchanged. The output directory must be new. Containing-parent wiring and
 native qualification remain outstanding; generation alone is not acceptance.
 
+`tools/build_app_wrapper.py --source /path/to/altpcieav_256_app.sv --output DIR`
+generates the matching application wrapper. It retains `Rstn_i[6]`, the
+existing disabled control-load input, and the complete write-mover/downstream
+logic. Completer-only mode drives the added outputs inactive.
+
+The parent must connect these new channels directly alongside the existing
+status data/valid path:
+
+| Controller wrapper | Application wrapper |
+| --- | --- |
+| `RdStatusReady_o` | `RdStatusReady_i` |
+| `RdReceiptValid_o` | `RdReceiptValid_i` |
+| `RdReceiptData_o` | `RdReceiptData_i` |
+| `RdReceiptConsumed_i` | `RdReceiptConsumed_o` |
+
+Controller fetch/diagnostic acceptance inputs still require real consumers.
+Application `RdContractFault_o` and controller fault outputs require retained
+host-visible handling. Exposing them does not implement that handling.
+
 The retained shell connects the read mover and controller through
 `dut_rd_ast_tx_data` and `dut_rd_ast_tx_valid`. It has no status-ready or
 receipt-return wires. Replacing the two leaf modules alone is insufficient.
