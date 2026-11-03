@@ -92,9 +92,24 @@ or validation with competing RXM/TXS writers.
 
 `tools/build_configured_wrapper.py --source /path/to/pcie_ed_DUT.v --output DIR`
 retains the exact generated parent parameter overrides while replacing its
-parent module with the receipt-connected candidate. It exposes the same eight
+parent module with the receipt-connected candidate. It exposes the
 fetch, diagnostic and fault ports. Changed input bytes are rejected. The
 parameter override block is preserved byte-for-byte, including Gen3, 256-bit
 AVMM DMA and the internal controller. This supplies an exact-configuration
 elaboration target; it does not implement the remaining host consumers or
 establish physical board compatibility.
+
+The fetch channel now exposes `FetchStatusValid_o` and `FetchStatusData_o`
+from the read controller, `RdFetchStatusValid_o`/`RdFetchStatusData_o` from
+the containing controller, and `CandidateRdFetchStatusValid_o`/
+`CandidateRdFetchStatusData_o` at both parent wrappers. Ready remains an input.
+A consumer must inspect the stable valid word before accepting it; the prior
+ready-only outer interface could not support that contract. The controller
+fixture now uses these public ports instead of hierarchical fetch references.
+
+The retained `dma_status_reg` staging registers have no functional consumer
+in this transformed controller; their timing assertion is not acceptance by
+a descriptor-table consumer. The new ports expose the missing interface,
+without supplying that consumer or authorizing a constant-ready connection.
+Existing frozen parent elaboration predates these added ports and cannot
+qualify them.

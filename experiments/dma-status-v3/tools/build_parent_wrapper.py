@@ -15,6 +15,8 @@ SOURCE_SHA256 = '9fa06ad3caeeb1887ddde9326e7d5a72e867a953e3a59cea6d2b201e548f98f
 ORIGINAL = 'pcie_ed_DUT_altera_pcie_a10_hip_2023_ygrj5ua'
 PORTS = '''
       input wire CandidateRdFetchStatusReady_i,
+      output wire CandidateRdFetchStatusValid_o,
+      output wire [31:0] CandidateRdFetchStatusData_o,
       output wire CandidateRdDiagnosticValid_o,
       input wire CandidateRdDiagnosticReady_i,
       output wire [31:0] CandidateRdDiagnosticData_o,
@@ -44,6 +46,8 @@ CONTROL = '''
          .RdReceiptData_o (candidate_rd_receipt_data),
          .RdReceiptConsumed_i (candidate_rd_receipt_consumed),
          .RdFetchStatusReady_i (CandidateRdFetchStatusReady_i),
+         .RdFetchStatusValid_o (CandidateRdFetchStatusValid_o),
+         .RdFetchStatusData_o (CandidateRdFetchStatusData_o),
          .RdDiagnosticValid_o (CandidateRdDiagnosticValid_o),
          .RdDiagnosticReady_i (CandidateRdDiagnosticReady_i),
          .RdDiagnosticData_o (CandidateRdDiagnosticData_o),

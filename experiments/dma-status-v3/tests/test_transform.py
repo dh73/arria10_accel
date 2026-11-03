@@ -44,6 +44,10 @@ class TransformTests(unittest.TestCase):
     def test_controller_direct_closed_receipt_and_fetch_fence(self):
         out = build.transform_controller(CONTROLLER, T)
         self.assertIn('input logic DmaAckConsumed_i,', out)
+        self.assertIn('output logic FetchStatusValid_o,', out)
+        self.assertIn('output logic [31:0] FetchStatusData_o,', out)
+        self.assertIn('assign FetchStatusValid_o = v3_fetch_valid;', out)
+        self.assertIn('assign FetchStatusData_o = v3_fetch_word;', out)
         self.assertIn('.retired_ack_consumed(DmaAckConsumed_i)', out)
         self.assertIn('.retired_ack_valid(DmaAckValid_o)', out)
         self.assertIn('.retired_ack_word(DmaAckData_o)', out)

@@ -30,6 +30,8 @@ logic [7:0] csaddr = 0;
 logic [31:0] csdata = 0;
 logic host_stall = 1, fetch_ready = 0;
 wire cswait, host_write, diagnostic_valid, controller_fault;
+wire fetch_valid;
+wire [31:0] fetch_word;
 wire [63:0] host_address;
 wire [31:0] host_data, diagnostic_data, controller_fault_word;
 wire [3:0] host_be;
@@ -55,6 +57,7 @@ altpcie_dynamic_control_candidate_v3 controller (
   .DmaRxData_i(status_word), .DmaRxValid_i(status_valid), .DmaRxReady_o(status_ready),
   .DmaAckValid_o(ack_valid), .DmaAckData_o(ack_word), .DmaAckConsumed_i(ack_consumed),
   .FetchStatusReady_i(fetch_ready),
+  .FetchStatusValid_o(fetch_valid), .FetchStatusData_o(fetch_word),
   .StatusDiagnosticValid_o(diagnostic_valid), .StatusDiagnosticReady_i(1'b0),
   .StatusDiagnosticData_o(diagnostic_data), .StatusProtocolFault_o(controller_fault),
   .StatusProtocolFaultWord_o(controller_fault_word),
@@ -97,8 +100,8 @@ always @(posedge clk) begin
         $fatal(1, "wrong/duplicate controller flag or fetch alias addr=%h data=%h", host_address, host_data);
       host_writes++;
     end
-    if (controller.v3_fetch_valid && fetch_ready) begin
-      if (fetch_handoffs >= 2 || controller.v3_fetch_word !== success(fetch_handoffs + 1))
+    if (fetch_valid && fetch_ready) begin
+      if (fetch_handoffs >= 2 || fetch_word !== success(fetch_handoffs + 1))
         $fatal(1, "wrong fetch handoff identity");
       fetch_handoffs++;
       last_fetch_edge = cycles;
@@ -186,10 +189,10 @@ initial begin
   drain_receipt(1);
   for (int index = 1; index <= 2; index++) begin
     complete_owner(identity(index));
-    wait (controller.v3_fetch_valid);
+    wait (fetch_valid);
     repeat (9) begin
       tick();
-      if (!controller.v3_fetch_valid || controller.v3_fetch_word !== success(index) ||
+      if (!fetch_valid || fetch_word !== success(index) ||
           ack_valid || ack_consumed || controller.dma_status_valid_reg ||
           host_write || !owner.live_q[0])
         $fatal(1, "stalled fetch status escaped, aliased data or authorized reuse");

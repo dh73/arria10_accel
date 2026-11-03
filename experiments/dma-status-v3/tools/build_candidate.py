@@ -34,6 +34,8 @@ initial if (READ_CONTROL != 1 || DMA_WIDTH != 256)
 // synthesis translate_on
 logic v3_fetch_valid;
 logic [31:0] v3_fetch_word;
+assign FetchStatusValid_o = v3_fetch_valid;
+assign FetchStatusData_o = v3_fetch_word;
 logic v2_status_accept;
 assign v2_status_accept = DmaRxValid_i && DmaRxReady_o;
 always_ff @(posedge Clk_i or negedge Rstn_i) begin
@@ -106,7 +108,8 @@ def transform_controller(source: str, t) -> str:
     result = t._replace(source, 'module altpcie_dynamic_control_candidate_v2 #(',
                         'module altpcie_dynamic_control_candidate_v3 #(', 'v2 controller module')
     result = t._replace(result, 'output logic [31:0] DmaAckData_o,',
-                        'output logic [31:0] DmaAckData_o,\ninput logic DmaAckConsumed_i,',
+                        'output logic [31:0] DmaAckData_o,\ninput logic DmaAckConsumed_i,\n'
+                        'output logic FetchStatusValid_o,\noutput logic [31:0] FetchStatusData_o,',
                         'receipt reverse port')
     # These comments are synthesis directives, not ignorable whitespace.
     # Token replacement leaves the outer translate_off/on in the source.
