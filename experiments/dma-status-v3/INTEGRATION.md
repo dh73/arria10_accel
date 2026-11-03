@@ -83,3 +83,9 @@ headers for loss/reordering, checks the full five-bit occupancy stays below
 16, and retains payload/status/receipt checks. It does not model RXM/TXS
 writers or prove the shared arbiter's occupancy bound. Execution results are
 separate from this test definition.
+
+All six modes pass with 16 ordered request headers, 64 accepted payload beats
+and eight terminal completions per mode. The highest observed occupancy is
+14 in every case; the producer stops issuing during sustained downstream
+backpressure. This is finite read-producer coverage, not an all-state bound
+or validation with competing RXM/TXS writers.
