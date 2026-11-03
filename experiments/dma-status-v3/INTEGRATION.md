@@ -121,3 +121,10 @@ width mismatches, 49 too-few-port lint messages, un-driven implicit wires and
 a model select-out-of-bounds warning. These remain behavioral/connectivity
 obligations; successful elaboration does not dismiss them. This result does
 not qualify the later fetch-port additions or establish simulation acceptance.
+
+The explicit fetch-port controller test passes for data ID 7 and fetch IDs
+128/192: one host flag write, two fetch handoffs and three closed receipts.
+Each fetch word remains stable through nine stalled cycles without early
+receipt or owner reuse. The test uses public fetch ports and a finite receipt
+model. It does not exercise the complete descriptor-fetch consumer or the
+updated parent wrappers.
