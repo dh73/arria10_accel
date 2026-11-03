@@ -22,8 +22,11 @@
   independent destination-byte oracle under stalls, ring wraps and maximum
   descriptor lengths. Native wrapper/adapter/mux simulation now passes 6,672
   descriptors and 423,250 packets per seed through output FIFO enqueue/dequeue.
-  Final-enqueue status is qualified in that fixture; PCIe host delivery and
-  controller/parent composition remain open.
+  The actual write-controller/packetizer/DCM sink composition now also passes:
+  6,801 descriptors and 423,475 packets per stress seed, nine original-defect
+  witnesses, twelve corrected runs and fifteen abstract proof obligations.
+  Reserved completion capacity, saved metadata and accepted status/MSI retirement
+  are checked locally. PCIe host delivery and full-parent composition remain open.
 * Compose both directions with DDR initialization, arbitration and supervision.
   Establish reset epochs, error custody, diagnostic storage, interrupt behavior
   and host-visible retirement before connecting the production transport.
