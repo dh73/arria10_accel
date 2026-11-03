@@ -48,8 +48,12 @@ before and after the soft-stage exception. Empty path lists and positive slack
 do not establish the reset-release contract.
 
 `sta --require-hard-reset-closure` saves the assessment and returns failure
-while those contracts remain unresolved. The added collector has local checker
-coverage but has not yet run in native timing analysis; the earlier four-corner
-soft-stage result does not qualify this additional capture. The signed DDR
-budget parser, report-database alignment and canonical pin identity checks
-remain intact. No additional timing exception is installed.
+while those contracts remain unresolved. Native collection now passes at all
+four corners: the 21 endpoint identities and enabled reset arcs match, and each
+phase returns 42 recovery/removal records per corner. Every returned path list
+is empty. Equality of these empty matrices does not establish analyzable reset
+paths or timing safety; all 21 contracts remain open. The soft-stage delta is
+still exactly 22 to 21 endpoints, with 1,029 status paths and the internal/DDR
+checks unchanged. The signed DDR budget parser, report-database alignment and
+canonical pin identity checks remain intact. No additional timing exception
+is installed.
