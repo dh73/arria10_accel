@@ -136,12 +136,14 @@ proc ::c126::snapshot {phase index hold_only} {
     }
     set tag C126_${phase}_${index}_DDR
     set previous_tables [table_registry]
+    write_file [file join $dir report_tables_before.tcllist] $previous_tables
     # Registered generated report scripts inspect quartus(nameofexecutable)
     # and other top-level state. Execute them in the native global context,
     # not this procedure's variable frame; keep their source bytes unchanged.
     uplevel #0 [list report_ddr -panel_name $tag -file [file join $dir ddr.rpt]]
     panels $tag [file join $dir ddr.jsonl]
     set current_tables [table_registry]
+    write_file [file join $dir report_tables_after.tcllist] $current_tables
     set unexpected {}
     foreach name [lsort -unique [concat [dict keys $previous_tables] [dict keys $current_tables]]] {
         if {[string first $tag $name] >= 0} { continue }
@@ -196,6 +198,13 @@ proc ::c126::main {} {
     read_sdc
     update_timing_netlist
     c126_diagnose [file join $out diagnostic]
+    # Generated DDR scripts load the active STA report database themselves.
+    # Select that same database before collecting comparison baselines.
+    set initial_report_type [get_loaded_report_type]
+    set timing_report_type [get_current_report_type]
+    load_report_database -type_name $timing_report_type
+    write_file [file join $out report_database_context.tcllist] \
+        [list initial $initial_report_type timing $timing_report_type loaded [get_loaded_report_type]]
     set conditions {}
     set meta {}
     foreach_in_collection op [get_available_operating_conditions] {

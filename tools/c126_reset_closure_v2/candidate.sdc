@@ -52,14 +52,16 @@ proc ::c126::apply_candidate {} {
     }
     set data_arc 0
     foreach edge [get_node_info -synch_edges $first_id] {
-        if {[get_edge_info -src $edge] eq $data_id &&
-            [get_edge_info -dst $edge] eq $first_id &&
+        if {[get_node_info -name [get_edge_info -src $edge]] eq $data_name &&
+            [get_node_info -type [get_edge_info -src $edge]] eq "pin" &&
+            [get_node_info -name [get_edge_info -dst $edge]] eq $soft &&
+            [get_node_info -type [get_edge_info -dst $edge]] eq "reg" &&
             [get_edge_info -type $edge] eq "synchronous" &&
             ![get_edge_info -is_disabled $edge]} { set data_arc 1 }
     }
     if {!$data_arc} { error "C126 pin lacks a live synchronous data arc to din_s1" }
     foreach edge [get_node_info -asynch_edges $first_id] {
-        if {[get_edge_info -src $edge] eq $data_id} {
+        if {[get_node_info -name [get_edge_info -src $edge]] eq $data_name} {
             error "C126 refuses a pin that also has an asynchronous check arc"
         }
     }

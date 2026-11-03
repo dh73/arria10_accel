@@ -196,11 +196,11 @@ class TclControls(unittest.TestCase):
 
     def node(self, option, obj):
         if option == "-name": return self.names[obj]
-        if option == "-type": return "reg" if obj == "F" else "port"
+        if option == "-type": return "reg" if obj in {"F", "FAlias"} else "pin" if obj in {"D", "DAlias"} else "port"
         return ("E",) if option == "-synch_edges" else ()
 
     def edge(self, option, obj):
-        return {"-src":"D", "-dst":"F", "-type":"asynchronous" if self.bad == "async" else "synchronous",
+        return {"-src":"DAlias" if self.bad == "alias" else "D", "-dst":"FAlias" if self.bad == "alias" else "F", "-type":"asynchronous" if self.bad == "async" else "synchronous",
                 "-is_disabled":0}[option]
 
     def source(self):
@@ -218,6 +218,14 @@ class TclControls(unittest.TestCase):
         self.assertEqual(self.cuts, [])
 
     def test_default_soft_only(self):
+        self.t.setvar("::c126::status_observation_only", 0)
+        self.source()
+        self.assertEqual(self.cuts, [("-from", "R", "-through", "D", "-to", "F")])
+
+    def test_edge_typed_aliases_preserve_exact_identity(self):
+        self.names["DAlias"] = self.names["D"]
+        self.names["FAlias"] = self.names["F"]
+        self.bad = "alias"
         self.t.setvar("::c126::status_observation_only", 0)
         self.source()
         self.assertEqual(self.cuts, [("-from", "R", "-through", "D", "-to", "F")])
