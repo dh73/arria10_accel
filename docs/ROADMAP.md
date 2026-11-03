@@ -17,8 +17,10 @@
 * Connect the corrected D2H count producer and unaligned payload path through
   the actual aligner and packet generator. Check emitted packets against an
   independent destination-byte oracle under stalls, ring wraps and maximum
-  descriptor lengths. Producer/raw-buffer retirement already passes finite
-  tests; downstream packet delivery remains unqualified.
+  descriptor lengths. Native wrapper/adapter/mux simulation now passes 6,672
+  descriptors and 423,250 packets per seed through output FIFO enqueue/dequeue.
+  Final-enqueue status is qualified in that fixture; PCIe host delivery and
+  controller/parent composition remain open.
 * Compose both directions with DDR initialization, arbitration and supervision.
   Establish reset epochs, error custody, diagnostic storage, interrupt behavior
   and host-visible retirement before connecting the production transport.
