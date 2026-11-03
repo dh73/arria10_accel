@@ -1,0 +1,11 @@
+# RTL simulation uses VCS; original review harness is retained as evidence.
+LEAN ?= lean
+.PHONY: all test test-matrix formal check
+all: test-matrix
+test: test-matrix
+test-matrix:
+	bash tests/vcs/run_adapter.sh
+formal:
+	cd formal/lean && $(LEAN) --version
+	cd formal/lean && $(LEAN) KernelDdrAdapter.lean
+check: test-matrix formal

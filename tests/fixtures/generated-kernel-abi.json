@@ -1,0 +1,223 @@
+{
+  "schema": 1,
+  "scope": "generated source only; loaded image not verified",
+  "cra_aperture_bytes": 512,
+  "kernels": [
+    {
+      "name": "Pass1Kernel",
+      "base": 0,
+      "size": 256,
+      "start_offset": 8,
+      "status_offset": 0,
+      "finished_bit": 1,
+      "finish_count_offset": 48,
+      "finish_count_bits": 2,
+      "finish_count_clear_on_read": true,
+      "arguments": [
+        {
+          "name": "arg_count",
+          "byte_offset": 128,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 0
+        },
+        {
+          "name": "arg_temporary_access",
+          "byte_offset": 136,
+          "size": 8,
+          "kind": "ACL_ARG_MEM_OBJ",
+          "rtl_bit_offset": 64
+        },
+        {
+          "name": "arg_temporary_access1",
+          "byte_offset": 144,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 128
+        },
+        {
+          "name": "arg_temporary_access2",
+          "byte_offset": 152,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 192
+        },
+        {
+          "name": "arg_temporary_access4",
+          "byte_offset": 160,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 256
+        },
+        {
+          "name": "arg_a_access",
+          "byte_offset": 168,
+          "size": 8,
+          "kind": "ACL_ARG_MEM_OBJ",
+          "rtl_bit_offset": 320
+        },
+        {
+          "name": "arg_a_access6",
+          "byte_offset": 176,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 384
+        },
+        {
+          "name": "arg_a_access7",
+          "byte_offset": 184,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 448
+        },
+        {
+          "name": "arg_a_access9",
+          "byte_offset": 192,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 512
+        },
+        {
+          "name": "arg_b_access",
+          "byte_offset": 200,
+          "size": 8,
+          "kind": "ACL_ARG_MEM_OBJ",
+          "rtl_bit_offset": 576
+        },
+        {
+          "name": "arg_b_access11",
+          "byte_offset": 208,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 640
+        },
+        {
+          "name": "arg_b_access12",
+          "byte_offset": 216,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 704
+        },
+        {
+          "name": "arg_b_access14",
+          "byte_offset": 224,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 768
+        }
+      ]
+    },
+    {
+      "name": "Pass2Kernel",
+      "base": 256,
+      "size": 256,
+      "start_offset": 8,
+      "status_offset": 0,
+      "finished_bit": 1,
+      "finish_count_offset": 48,
+      "finish_count_bits": 2,
+      "finish_count_clear_on_read": true,
+      "arguments": [
+        {
+          "name": "arg_count",
+          "byte_offset": 128,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 0
+        },
+        {
+          "name": "arg_output_access",
+          "byte_offset": 136,
+          "size": 8,
+          "kind": "ACL_ARG_MEM_OBJ",
+          "rtl_bit_offset": 64
+        },
+        {
+          "name": "arg_output_access1",
+          "byte_offset": 144,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 128
+        },
+        {
+          "name": "arg_output_access2",
+          "byte_offset": 152,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 192
+        },
+        {
+          "name": "arg_output_access4",
+          "byte_offset": 160,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 256
+        },
+        {
+          "name": "arg_temporary_access",
+          "byte_offset": 168,
+          "size": 8,
+          "kind": "ACL_ARG_MEM_OBJ",
+          "rtl_bit_offset": 320
+        },
+        {
+          "name": "arg_temporary_access6",
+          "byte_offset": 176,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 384
+        },
+        {
+          "name": "arg_temporary_access7",
+          "byte_offset": 184,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 448
+        },
+        {
+          "name": "arg_temporary_access9",
+          "byte_offset": 192,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 512
+        },
+        {
+          "name": "arg_b_access",
+          "byte_offset": 200,
+          "size": 8,
+          "kind": "ACL_ARG_MEM_OBJ",
+          "rtl_bit_offset": 576
+        },
+        {
+          "name": "arg_b_access11",
+          "byte_offset": 208,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 640
+        },
+        {
+          "name": "arg_b_access12",
+          "byte_offset": 216,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 704
+        },
+        {
+          "name": "arg_b_access14",
+          "byte_offset": 224,
+          "size": 8,
+          "kind": "ACL_ARG_BY_VALUE",
+          "rtl_bit_offset": 768
+        }
+      ]
+    }
+  ],
+  "source_sha256": {
+    "workload_es3_default_early.bc.xml": "42325df2fa6cba80c549277e1e1a493fc519e018b71ca035ff7be22a07a18b65",
+    "kernel_system.sv": "d3a3bc696c695438e4c28d0bd71fb688eb2707122241c23548f132f7038629c9",
+    "kernel_hdl/Pass1Kernel/Pass1Kernel_function_wrapper.sv": "7d7be8821c0bd01aefa2252a94a5b3b6a4e947c5c31a1238d6afc0e759c3dc02",
+    "kernel_hdl/Pass1Kernel/Pass1Kernel_function_cra_agent.sv": "a3132a857cd605d435eeac48d1728b7db55687450ce9e4633e1fa82c1b8ad2d3",
+    "kernel_hdl/Pass2Kernel/Pass2Kernel_function_wrapper.sv": "a089daa2f0b8768d9f68b9ce4d0abca800d7a3a7c2d2fe99eced7fe609ae6d6d",
+    "kernel_hdl/Pass2Kernel/Pass2Kernel_function_cra_agent.sv": "93db750b92553fb41b777de4c1232d71d491f06064ae628bdd40879b107f910f"
+  }
+}

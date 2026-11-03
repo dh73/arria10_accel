@@ -1,0 +1,28 @@
+Bootstrap: docker
+From: ubuntu@sha256:8a2321a92b438238f93b4346fff61bc4259c99fdd4d9b52ee86f153fee0c344f
+
+%labels
+    org.asus-a10.compiler-package 2025.0.4-1519
+    org.asus-a10.fpga-package 2025.0.4-1519
+    org.asus-a10.physical-qualification unverified
+
+%post
+    set -eu
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg build-essential cmake ninja-build git libelf-dev zlib1g-dev python3
+    curl --fail --location https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -o /tmp/intel-key.asc
+    gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg /tmp/intel-key.asc
+    printf '%s\n' 'deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main' > /etc/apt/sources.list.d/oneAPI.list
+    apt-get update
+    apt-get install -y --no-install-recommends intel-oneapi-compiler-dpcpp-cpp-2025.0=2025.0.4-1519 intel-oneapi-dpcpp-cpp-2025.0=2025.0.4-1519 intel-oneapi-compiler-fpga-2025.0=2025.0.4-1519
+    mkdir -p /opt/asus-a10
+    dpkg-query -W -f='${Package}\t${Version}\n' > /opt/asus-a10/package-versions.tsv
+    cp /tmp/intel-key.asc /opt/asus-a10/intel-key.asc
+    apt-get clean
+
+%test
+    /bin/bash -c 'source /opt/intel/oneapi/setvars.sh >/dev/null && icpx --version'
+
+%runscript
+    exec /bin/bash -c 'source /opt/intel/oneapi/setvars.sh >/dev/null; exec "$@"' bash "$@"

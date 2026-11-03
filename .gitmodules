@@ -1,0 +1,3 @@
+[submodule "third_party/fpga-runtime-for-opencl"]
+	path = third_party/fpga-runtime-for-opencl
+	url = https://github.com/intel/fpga-runtime-for-opencl.git
