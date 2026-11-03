@@ -25,3 +25,10 @@ that snapshot. Diagnostic category counts match the preceding build, including
 29 width warnings and 49 missing-port lint messages. Those counts do not prove
 behavioral equivalence or resolve the obligations above. Full-parent simulation,
 fetch-consumer behavior and hardware acceptance remain unqualified.
+
+`tools/build_memory_mask_wrapper.py --parent PARENT --configured TOP --output DIR`
+creates a separate fixed-configuration candidate exposing
+`wr_dma_read_byte_enable_o[31:0]`. It connects the actual application mask through
+the parent and configured top without changing address, burst, read-data or
+write-mover logic. Exact input hashes are required. The memory fabric must still
+consume that mask; exporting it alone does not close end-to-end semantics.
