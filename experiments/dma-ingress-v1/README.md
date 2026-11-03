@@ -65,5 +65,8 @@ through CSRs, supplies 48 distinct descriptors through DTS, and checks all nativ
 FIFO pops and memory commands while the native producer applies backpressure.
 Run with both `--controller` and `--controller-tx` pointing to the source-pinned
 v4 controller and its include. Compatible model files are explicit inputs.
-This composition is prepared but not yet qualified; its memory-return and
+The composed controller/producer regression passes: 48 distinct descriptors,
+969 stalled-offer cycles, and exactly 48 native enqueues, pops and commands.
+The original connection reproduces an enqueue while controller ready is low.
+Ten source hashes and both native logs were checked. Its memory-return and
 metadata-consumer fixtures still exclude packetization and host retirement.
