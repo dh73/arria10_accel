@@ -26,3 +26,28 @@ python3 experiments/dma-ingress-v1/build.py \
   --source /absolute/path/to/altpcieav_256_app_fetch_v4.sv \
   --output /new/private/path/altpcieav_256_app_ingress_v1.sv
 ```
+
+## Native ingress regression
+
+`run.py` compares the original and adapted port expressions against the actual
+native producer and descriptor FIFO. `ingress_tb.sv` retains each offer until
+accepted and checks every descriptor popped from the native FIFO. The positive
+case requires 192 admissions, enqueues, pops and commands across four reset
+epochs, with observed backpressure. The original case must produce the specific
+extra-enqueue failure; unrelated errors cannot satisfy the negative control.
+Memory responses and the downstream metadata consumer are fixture drivers.
+This does not exercise the full controller, packetizer or board.
+
+Supply the exact application, corrected count producer, FIFO and compatible
+model sources as private inputs. Tool commands are explicit; executable symlinks
+are preserved. Preparation records hashes and commands without executing them:
+
+```sh
+python3 experiments/dma-ingress-v1/run.py \
+  --application /private/application.sv --producer /private/producer.sv \
+  --fifo /private/fifo.sv --model /private/altera_mf.v \
+  --lpm /private/220model.v --compiler /absolute/compiler \
+  --runner /absolute/runner --output /new/private/build --prepare-only
+```
+
+For execution, omit `--prepare-only` and select another fresh output directory.
