@@ -115,3 +115,21 @@ rejection, separate copy/triad corruption and every successful-path API call.
 Its streaming execution uses reference arithmetic; `run_streaming.py` separately
 executes the actual vector kernel bodies. Neither fixture establishes runtime
 or physical bandwidth acceptance.
+
+## Working-set size
+
+Append `--count N` to select a nonzero decimal element count instead of the
+seven-size correctness suite. For example, after hardware readiness is met:
+
+```sh
+build/opencl/a10_opencl_correctness --physical streaming.aocx \
+  'exact platform name' 'exact accelerator name' --streaming --count 16777216
+```
+
+The host checks each buffer against `CL_DEVICE_MAX_MEM_ALLOC_SIZE`, and the
+combined three streaming buffers (four correctness buffers) against reported
+global memory before creating a context or loading the binary. These are actual
+reported capacity bounds, not a fixed workload cap. Runtime allocation may
+still fail because memory is shared or reserved; such failures remain errors.
+The element ABI is uint32 and host byte-size arithmetic is checked. Larger
+working sets alone do not prove external-memory traffic or peak bandwidth.

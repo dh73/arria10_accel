@@ -3,6 +3,8 @@
 #include "asus_a10/workload_reference.hpp"
 #include <algorithm>
 #include <cctype>
+#include <charconv>
+#include <limits>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -142,12 +144,23 @@ void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
 }
 }
 int main(int argc,char** argv) {
-  if((argc!=5 && argc!=6) || std::string(argv[1])!="--physical" ||
-     (argc==6 && std::string(argv[5])!="--streaming")) {
-    std::cerr<<"usage: "<<argv[0]<<" --physical BINARY EXACT_PLATFORM_NAME EXACT_DEVICE_NAME [--streaming]\n";return 64;
+  if(argc<5 || std::string(argv[1])!="--physical") {
+    std::cerr<<"usage: "<<argv[0]<<" --physical BINARY EXACT_PLATFORM_NAME EXACT_DEVICE_NAME [--streaming] [--count N]\n";return 64;
   }
   try {
-    const bool streaming=argc==6;
+    bool streaming=false,count_selected=false;
+    std::vector<cl_uint> counts{1U,3U,17U,257U,4093U,65537U,1000003U};
+    for(int i=5;i<argc;++i){
+      const std::string arg=argv[i];
+      if(arg=="--streaming" && !streaming)streaming=true;
+      else if(arg=="--count" && !count_selected && i+1<argc){
+        const std::string text=argv[++i];cl_uint count=0;
+        const auto parsed=std::from_chars(text.data(),text.data()+text.size(),count);
+        if(parsed.ec!=std::errc{} || parsed.ptr!=text.data()+text.size() || count==0)
+          throw std::runtime_error("Count must be a nonzero decimal uint32");
+        counts={count};count_selected=true;
+      } else throw std::runtime_error("Unknown, duplicate or incomplete option: "+arg);
+    }
     std::ifstream input(argv[2],std::ios::binary);
     if(!input) throw std::runtime_error("Cannot open device binary");
     std::vector<unsigned char> binary((std::istreambuf_iterator<char>(input)),{});
@@ -163,6 +176,16 @@ int main(int argc,char** argv) {
       check(clGetDeviceInfo(device,CL_DEVICE_MEM_BASE_ADDR_ALIGN,sizeof(alignment_bits),&alignment_bits,nullptr),"buffer alignment");
       if(alignment_bits<512 || alignment_bits%512)throw std::runtime_error("512-bit buffer alignment not established");
     }
+    cl_ulong max_allocation=0,global_memory=0;
+    check(clGetDeviceInfo(device,CL_DEVICE_MAX_MEM_ALLOC_SIZE,sizeof(max_allocation),&max_allocation,nullptr),"max allocation");
+    check(clGetDeviceInfo(device,CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(global_memory),&global_memory,nullptr),"global memory");
+    for(auto n:counts){
+      const std::uint64_t bytes=std::uint64_t(n)*sizeof(cl_uint);
+      if(bytes>std::numeric_limits<size_t>::max() || bytes>max_allocation ||
+         bytes>global_memory/(streaming?3:4))
+        throw std::runtime_error("Requested buffers exceed reported device or host address limits");
+    }
+    std::cout<<"max_allocation_bytes="<<max_allocation<<" global_memory_bytes="<<global_memory<<'\n';
     Context context;context.value=clCreateContext(nullptr,1,&device,nullptr,nullptr,&error);check(error,"context");
     Queue queue;queue.value=clCreateCommandQueue(context.value,device,CL_QUEUE_PROFILING_ENABLE,&error);check(error,"queue");
     Program program;const unsigned char* data=binary.data();size_t length=binary.size();cl_int binary_status=0;
@@ -181,7 +204,7 @@ int main(int argc,char** argv) {
     Kernel first,second;
     first.value=clCreateKernel(program.value,streaming?"stream_copy512":"correctness_pass1",&error);check(error,"pass1 kernel");
     second.value=clCreateKernel(program.value,streaming?"stream_triad512":"correctness_pass2",&error);check(error,"pass2 kernel");
-    for(cl_uint n:{1U,3U,17U,257U,4093U,65537U,1000003U}){
+    for(cl_uint n:counts){
       if(streaming)run_stream(context.value,queue.value,first.value,second.value,n);
       else run(context.value,queue.value,first.value,second.value,n);
     }

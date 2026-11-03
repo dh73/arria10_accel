@@ -18,7 +18,7 @@ subprocess.run([a.cxx,'-std=c++17','-O2','-Wall','-Wextra','-Werror','-I'+str(a.
 command=[str(build/'host'),'--physical',str(build/'fixture.bin'),'fixture','fixture-device']
 def run(name,env,expected):
     clean=os.environ.copy()
-    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS'):clean.pop(key,None)
+    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS','SMALL_ALLOC','SMALL_MEMORY'):clean.pop(key,None)
     r=subprocess.run(command,env=dict(clean,**env),text=True,capture_output=True)
     (build/(name+'.log')).write_text(r.stdout+r.stderr)
     assert r.returncode==expected,(name,r.returncode,r.stderr)
@@ -47,5 +47,23 @@ for i in range(1,stream_calls+1):run(f'stream-failure-{i}',{'FAIL_AT':str(i)},1)
 for key in ('DUPLICATE','BAD_BINARY','CORRUPT','BAD_ALIGN'):run('stream-'+key.lower(),{key:'1'},1)
 for value in (1,2):run(f'stream-bad-time-{value}',{'BAD_TIME':str(value)},1)
 for value in (3,4):run(f'stream-corrupt-pass-{value}',{'CORRUPT_PASS':str(value)},1)
-result={'state':'passed','injected_call_failures':total,'streaming_injected_call_failures':stream_calls,'extra_failures':['duplicate identity','invalid binary status','corrupt output','zero/reversed/overlapping timing'],'scope':'Actual host with synchronous fake runtime; compiled correctness bodies and reference streaming arithmetic','real_runtime':False,'physical_acceptance':False}
+stream_command=list(command)
+command.extend(['--count','33'])
+r,_=run('explicit-count',{},0)
+assert r.stdout.count('OPENCL_STREAM_DATA_PASS')==2 and 'count=33' in r.stdout
+for key in ('SMALL_ALLOC','SMALL_MEMORY'):run(key.lower(),{key:'1'},1)
+for index,value in enumerate(('0','-1','+1','1x',' 1','4294967296')):
+    command[:]=stream_command+['--count',value]
+    run('invalid-count-'+str(index),{},1)
+command[:]=stream_command+['--count','4294967295']
+r,_=run('count-device-overflow',{},1)
+assert 'exceed reported' in r.stderr
+for index,suffix in enumerate((['--count'],['--streaming'],['--count','1','--count','2'],['--unknown'])):
+    command[:]=stream_command+suffix
+    run('invalid-options-'+str(index)),{},1)
+for label,count,env,expected in [('allocation-equal',16,{'SMALL_ALLOC':'1'},0),('allocation-over',17,{'SMALL_ALLOC':'1'},1),('aggregate-below',5,{'SMALL_MEMORY':'1'},0),('aggregate-over',6,{'SMALL_MEMORY':'1'},1)]:
+    command[:]=stream_command+['--count',str(count)]
+    run(label,env,expected)
+command[:]=stream_command
+result={'state':'passed','injected_call_failures':total,'streaming_injected_call_failures':stream_calls,'configurable_count_checks':True,'device_allocation_boundaries':True,'extra_failures':['duplicate identity','invalid binary status','corrupt output','zero/reversed/overlapping timing'],'scope':'Actual host with synchronous fake runtime; compiled correctness bodies and reference streaming arithmetic','real_runtime':False,'physical_acceptance':False}
 (build/'result.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))
