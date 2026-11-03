@@ -32,3 +32,28 @@ creates a separate fixed-configuration candidate exposing
 the parent and configured top without changing address, burst, read-data or
 write-mover logic. Exact input hashes are required. The memory fabric must still
 consume that mask; exporting it alone does not close end-to-end semantics.
+
+The mask-exporting parent elaborates successfully with all 99 source/model
+hashes verified. Diagnostic counts match the preceding configured parent.
+This is structural acceptance only.
+
+## Payload adapter candidate
+
+The retained payload adapter has no read-mask input and initializes DDR read
+byte enables to all 64 lanes. Its write path already stores per-beat masks.
+`tools/build_payload_mask.py` transforms the exact adapter with SHA-256
+`a7a66662e3d15497cf24ade5ce672733104eadbeb670175b542adab6c409c06c`
+into a separate `dma_payload_mask_candidate` module. It captures the read mask
+on command acceptance, retains it with the existing bundled-data CDC header,
+and drives that mask in the addressed 32-byte half of each DDR line. The other
+half is disabled. Address, count, response selection and write behavior remain
+unchanged by the transformation.
+
+The retained read-memory producer issues masked head/tail commands with
+burstcount one; its full-body commands use all 32 byte enables. The candidate
+applies a command's accepted mask to every beat, preserving that distinction.
+`tests/payload_mask_tb.sv` checks both half-line positions, each single-byte
+mask, partial doubleword head/tail masks, burst lengths 1 through 16, command
+stalls, asynchronous clocks and mask changes after acceptance. Native simulation
+is pending. This does not qualify CDC timing, the actual memory controller's
+read-mask behavior, descriptor retirement, or the complete parent-to-DDR path.
