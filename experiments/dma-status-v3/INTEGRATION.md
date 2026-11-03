@@ -1,5 +1,12 @@
 # Containing-shell integration
 
+`tools/build_control_wrapper.py --source /path/to/dma_controller.sv --output DIR`
+generates the read-side wrapper candidate from the exact retained source hash.
+It exposes receipt, status-ready, fetch-acceptance and diagnostic channels,
+passes `DMA_WIDTH` explicitly, and retains the complete write-controller tail
+unchanged. The output directory must be new. Containing-parent wiring and
+native qualification remain outstanding; generation alone is not acceptance.
+
 The retained shell connects the read mover and controller through
 `dut_rd_ast_tx_data` and `dut_rd_ast_tx_valid`. It has no status-ready or
 receipt-return wires. Replacing the two leaf modules alone is insufficient.
