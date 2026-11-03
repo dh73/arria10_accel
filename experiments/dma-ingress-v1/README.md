@@ -51,3 +51,10 @@ python3 experiments/dma-ingress-v1/run.py \
 ```
 
 For execution, omit `--prepare-only` and select another fresh output directory.
+
+Observed native result: the original connection enqueued five descriptors for
+four accepted offers. The adapted connection passed 192 distinct descriptors,
+2,333 stalled-offer cycles and four reset epochs with matching enqueue/pop/command
+counts. Seven input hashes and both native logs were checked. Existing producer
+literal-width, RAM-port and metadata-count-width warnings remain recorded; this
+result is not a blanket warning waiver. Full-controller integration remains open.
