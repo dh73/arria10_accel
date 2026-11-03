@@ -358,6 +358,7 @@ static void init_engine(void)
     assert(!test.pin_calls && !test.doorbells);
     /* Mock-shell fixture only. Production has no switch to do this. */
     device.dma_data.contract_valid = true;
+    device.dma_data.device_memory_bytes = 1ULL << 31;
 }
 static void finish_engine(void)
 {
@@ -431,6 +432,38 @@ static void test_engine_init_and_sync_errors(void)
                          4096, 1) == -ENODEV);
     finish_engine();
     puts("PASS integration: queue/coherent init unwind, default contract block, synchronous invalid pointer/map/range/offline errors");
+}
+static void test_engine_aperture(void)
+{
+    const u64 capacity = 1ULL << 31;
+    const u64 addresses[] = {capacity, capacity - 4, capacity + 4,
+                            1ULL << 32, capacity - 128 * PAGE_SIZE};
+    const ssize_t lengths[] = {4, 8, 4, 4, 129 * PAGE_SIZE};
+    unsigned int direction, i;
+    for (direction = 0; direction < 2; ++direction) {
+        init_engine();
+        device.dma_data.device_memory_bytes = 0;
+        assert(aclpci_dma_rw(&device, &file, (void *)0, (void *)0x100000,
+                            4, direction) == -ERANGE);
+        device.dma_data.device_memory_bytes = capacity;
+        for (i = 0; i < sizeof(addresses) / sizeof(addresses[0]); ++i) {
+            assert(aclpci_dma_rw(&device, &file,
+                                (void *)(uintptr_t)addresses[i],
+                                (void *)0x100000, lengths[i], direction) == -ERANGE);
+        }
+        assert(!test.pin_calls && !test.mmio_reads && !test.mmio_writes &&
+               !test.doorbells && !device.dma_data.active);
+        /* A request ending exactly at the aperture boundary is legal.
+         * Exercise real descriptor publication and normal retirement. */
+        assert(!aclpci_dma_rw(&device, &file,
+                             (void *)(uintptr_t)(capacity - PAGE_SIZE),
+                             (void *)0x100000, PAGE_SIZE, direction));
+        assert(device.dma_data.active && test.pin_calls == 1);
+        complete_with_irq();
+        assert(!device.dma_data.active && !device.dma_data.async_result);
+        finish_engine();
+    }
+    puts("PASS aperture: both directions, unknown/high/crossing/multibatch rejected before MMIO or pinning; exact-end retires");
 }
 static void test_engine_multitable(void)
 {
@@ -788,12 +821,13 @@ int main(void)
     test_mapping_faults();
     test_offsets_and_owner();
     test_engine_init_and_sync_errors();
+    test_engine_aperture();
     test_engine_multitable();
     test_engine_running_worker_irq();
     test_engine_stop_retention();
     test_engine_bad_status_and_bounds();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
-    puts("PASS all nine executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all ten executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

@@ -121,7 +121,7 @@ struct test_state {
     unsigned int coherent_allocs, coherent_frees, coherent_live;
     unsigned int wq_allocs, wq_frees, queues;
     bool fail_wq, fail_module, fail_copy, fail_down;
-    unsigned int device_refs, flushes, mask_calls, irq_disables, irq_enables, mmio_writes, command_calls;
+    unsigned int device_refs, flushes, mask_calls, irq_disables, irq_enables, mmio_writes, mmio_reads, command_calls;
     unsigned int signal_count, signal_errors;
     struct kernel_siginfo signal;
     struct task_struct *signal_task;
@@ -163,7 +163,7 @@ void destroy_workqueue(struct workqueue_struct *q);
 static inline void dma_wmb(void) { ++test.wmbs; }
 static inline void dma_rmb(void) { ++test.rmbs; }
 static inline void wmb(void) { ++test.wmbs; }
-static inline u32 ioread32(const void *p) { return *(const u32 *)p; }
+static inline u32 ioread32(const void *p) { ++test.mmio_reads; return *(const u32 *)p; }
 static inline u32 readl(const void *p) { return ioread32(p); }
 void iowrite32(u32 value, void *p);
 static inline void writel(u32 value, void *p) { iowrite32(value, p); }

@@ -408,6 +408,13 @@ ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,
         error = d->fault ? d->fault : -EOPNOTSUPP;
         goto unlock;
     }
+    /* Validate the WHOLE request before reading registers, pinning pages or
+     * publishing even its first descriptor batch. The checked exclusive end
+     * above cannot wrap. An unknown image aperture stays fail-closed. */
+    if (!d->device_memory_bytes || end > d->device_memory_bytes) {
+        error = -ERANGE;
+        goto unlock;
+    }
     last = ioread32(dma_regs(aclpci) + (reading ? ACL_PCIE_DMA_WR_LAST_PTR :
                                                 ACL_PCIE_DMA_RD_LAST_PTR));
     if (last == ACL_PCIE_DMA_RESET_ID || last == 127)
