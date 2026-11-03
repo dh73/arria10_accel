@@ -21,8 +21,12 @@ proc ::c126::diag_collection {node} {
     if {[get_collection_size $result] != 1} {
         error "Native diagnostic collection does not resolve exactly once: $name"
     }
+    # A keeper and its register collection use different typed handles even
+    # for the same node (native kpr__310 versus reg__310). Do not compare
+    # opaque handle strings across collection types.
     foreach_in_collection found $result {
-        if {$found ne $node || [get_node_info -name $found] ne $name} {
+        if {[get_node_info -type $found] ne [get_node_info -type $node] ||
+            [get_node_info -name $found] ne $name} {
             error [list NATIVE_OBJECT_IDENTITY_MISMATCH \
                 expected_id $node expected_name $name \
                 expected_type [get_node_info -type $node] \

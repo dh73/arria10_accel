@@ -207,5 +207,55 @@ class TclControls(unittest.TestCase):
         self.assertEqual(self.t.getvar("value"), value)
 
 
+class NativeCollectionControls(unittest.TestCase):
+    def setUp(self):
+        import tkinter
+        self.t = tkinter.Tcl()
+        self.t.call('source', str(Path(__file__).with_name('diag.tcl')))
+        self.t.eval(r"""
+            set actual_name {tile_gen[1].lane_gen[1].lane_inst~phy_reg1}
+            set actual_type reg
+            set count 1
+            proc get_node_info {option id} {
+                if {$option eq "-name"} {
+                    if {$id eq "_quartus_sta_kpr__310"} {
+                        return {tile_gen[1].lane_gen[1].lane_inst~phy_reg1}
+                    }
+                    return $::actual_name
+                }
+                if {$id eq "_quartus_sta_kpr__310"} {return reg}
+                return $::actual_type
+            }
+            proc get_registers {args} {return {_quartus_sta_reg__310}}
+            proc get_collection_size {collection} {return $::count}
+            proc foreach_in_collection {var collection body} {
+                upvar 1 $var node
+                foreach node $collection {uplevel 1 $body}
+            }
+        """)
+
+    def check(self):
+        return self.t.call('::c126::diag_collection', '_quartus_sta_kpr__310')
+
+    def test_typed_native_alias_resolves(self):
+        self.assertEqual(tuple(self.t.splitlist(self.check())), ('_quartus_sta_reg__310',))
+
+    def test_different_name_rejected(self):
+        self.t.setvar('actual_name', 'other_register')
+        with self.assertRaisesRegex(Exception, 'NATIVE_OBJECT_IDENTITY_MISMATCH'):
+            self.check()
+
+    def test_different_type_rejected(self):
+        self.t.setvar('actual_type', 'pin')
+        with self.assertRaisesRegex(Exception, 'NATIVE_OBJECT_IDENTITY_MISMATCH'):
+            self.check()
+
+    def test_ambiguous_or_missing_rejected(self):
+        for count in (0, 2):
+            self.t.setvar('count', count)
+            with self.assertRaisesRegex(Exception, 'does not resolve exactly once'):
+                self.check()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
