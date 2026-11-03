@@ -149,8 +149,13 @@ python3 experiments/dma-fetch-v4/tests/run_vcs.py --suite write \
   --fifo "$FETCH_ORIGINAL_FIFO" --out "$FETCH_FULL_WORK/vcs-write"
 ```
 
-Full-shell native elaboration still requires the original hierarchy
-and exact configured parameter/model file list.
+Full-shell native elaboration passes for the exact configured parent and
+original device/model hierarchy with the v4 controller, owner, engine and
+wrapper derivatives (356 modules). Source hashes were rechecked. The 29 port
+width warnings match the prior hierarchy by port, widths, instance and
+expression after module-name normalization; existing warnings remain open.
+This is elaboration only: return metadata and producer-close behavior still
+require full-fabric simulation and implementation.
 
 The VCS benches use the actual transformed controller DCS/DTS/TX interfaces,
 actual owner and native FIFO models; command/return stimulus and tagged return
