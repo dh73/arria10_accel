@@ -49,3 +49,18 @@ been checked; runtime and device execution remain unqualified.
 
 API contracts: [binary programs](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html)
 and [kernel dispatch](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueNDRangeKernel.html).
+
+## Host failure tests
+
+```sh
+python3 tests/opencl/run_host_tests.py --build /tmp/a10-opencl-host-tests \
+  --opencl-include /path/to/opencl/headers
+```
+
+The test links the actual host with a fake runtime and the compiled kernel
+bodies, without loading an ICD. It asserts launch dimensions, argument sizes,
+buffer bounds, explicit event dependencies and balanced handle release. Every
+API call on the successful path is independently failed; separate cases reject
+duplicate identity, invalid binary status and corrupted readback. The fixture
+is synchronous: it does not qualify runtime scheduling, asynchronous object
+retention, DMA, device faults or physical execution.
