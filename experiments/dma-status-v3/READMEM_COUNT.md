@@ -38,5 +38,10 @@ with `--suite native --correct-producer-count` and
 [UNALIGNED_HEAD.md](UNALIGNED_HEAD.md). The runner derives the correction from
 the exact original source and records both identities. This exercises maximum
 length at every DWORD offset in both half-lines as well as the existing native
-matrix. Full descriptor retirement and physical acceptance remain open until
-their respective results establish them.
+matrix. The combined run passes seeds 1, 17 and 73: 430 positive and seven
+negative descriptors per seed, including maximum length at all 16 source
+offsets. It checks producer completion, exact returned beat counts, raw data
+RAM and descriptor/completion FIFO consumption. Each seed checks 528031
+backend returns and 33711 producer commands. This establishes finite fixture
+retirement; downstream packetization, full-parent integration and physical
+acceptance remain open.

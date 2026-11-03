@@ -115,8 +115,9 @@ source DWORD offset. A sum of 262144 or greater wraps before calculating the
 completion beat count. For example, length 262143 at source offset 4 exercises
 this issue. No descriptor-format/admission source was supplied to establish
 that such combinations are excluded. This patch neither changes that frozen
-producer nor silently caps descriptor lengths; full native maximal-length
-completion remains a stated gap. Adapter admission is independent of length
+producer nor silently caps descriptor lengths. The separate count correction
+below qualifies maximal-length completion within the producer fixture.
+Adapter admission is independent of length
 and retains all legal segmented commands.
 
 `proofs/UnalignedHead.lean` is a checked pure arithmetic mapping proof
@@ -140,8 +141,13 @@ The aligned-mask and H2D/readback regressions also pass all three seeds. The
 old-candidate negative witness remains reproducible. Lean 4.19 passes the
 stateless lane mapping and aperture lemmas. Source hashes were rechecked.
 
-This validates finite producer/adapter/mux behavior. Maximum-length retirement,
-downstream packetization, descriptor admission, full-parent integration, CDC
-constraints, DDR visibility and physical board acceptance remain open. The
-separate [count correction](READMEM_COUNT.md) addresses the identified
-maximum-length arithmetic overflow and needs combined native qualification.
+The separate [count correction](READMEM_COUNT.md) also passes combined native
+qualification with this adapter and mux at seeds 1, 17 and 73. Each seed covers
+430 positive and seven negative descriptors, including length 262143 at every
+DWORD source offset in both half-lines, with 33711 producer commands and
+528031 checked backend returns/raw-buffer words. The fixture checks producer
+completion, forwarded metadata and descriptor/completion FIFO consumption.
+
+This validates finite producer/adapter/mux behavior and fixture retirement.
+Downstream packetization, descriptor admission, full-parent integration, CDC
+constraints, DDR visibility and physical board acceptance remain open.
