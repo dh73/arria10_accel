@@ -81,7 +81,8 @@ nonzero. It emits that address unchanged with burstcount one and a head mask.
 The payload adapter instead rejects every address with nonzero low five bits.
 Therefore the aligned-address mask tests do not qualify native unaligned heads.
 `tests/payload_unaligned_witness_tb.sv` checks rejection at offsets 4 through 28
-in both half-lines; native witness qualification is pending. It is a negative
+in both half-lines. All 14 cases reproduce rejection with fault code 1 and zero
+backend commands; all four original/copy source pins match. This is a negative
 adapter witness, not an execution of the native producer or a corrected path.
 Direction-specific address normalization, mask validation and aperture checks
 must be resolved before parent-to-memory integration can be accepted. H2D
