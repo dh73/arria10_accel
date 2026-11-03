@@ -13,7 +13,10 @@
   PCIe completions, queued write commands and both descriptor-table destinations.
   Produce token-bound closure only after the last destination acceptance,
   including partial/error returns. The v4 consumer and containing hierarchy are
-  qualified separately; exposed metadata ports are not an implemented fabric.
+  qualified separately. The v5 candidate now carries metadata through native
+  return commands and internalizes both table destinations and closure. Fourteen
+  producer/route/consumer scenarios pass, and its 357-module hierarchy elaborates.
+  Actual controller-to-return composition and whole-parent behavior remain open.
 * Connect the corrected D2H count producer and unaligned payload path through
   the actual aligner and packet generator. Check emitted packets against an
   independent destination-byte oracle under stalls, ring wraps and maximum
