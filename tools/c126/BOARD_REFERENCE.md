@@ -42,3 +42,29 @@ DM/DBI wiring and mode compatibility, reset/clock wiring and timing, and a
 board-matched recovery procedure. Recovery files in an archive are candidates,
 not a tested restoration path. The source differences do not justify silently
 changing the preserved C126 project.
+
+## Baseboard DM/DBI routing
+
+The archive's `A10GX_PCIE_E3p1.pdf`, document `150-0321301-E3`
+(`6XX-44366R`), revision E3.1 dated 2016-08-10, supplies a baseboard route
+for all nine C126 DBI assignments. Sheets 4 and 8 identify FPGA pins;
+sheet 17 identifies contacts on HiLo connector J14. The rows below were
+checked against rendered schematic pages and the unchanged C126 QSF.
+
+| C126 DBI bit | FPGA pin | Baseboard net | J14 contact |
+| --- | --- | --- | --- |
+| 0 | E26 | MEM_DMA0 | B10 |
+| 1 | G27 | MEM_DMA1 | C4 |
+| 2 | A29 | MEM_DMA2 | B17 |
+| 3 | F30 | MEM_DMA3 | F17 |
+| 4 | AB32 | MEM_DMB0 | M16 |
+| 5 | AG31 | MEM_DMB1 | U16 |
+| 6 | Y35 | MEM_DMB2 | U11 |
+| 7 | AC34 | MEM_DMB3 | U6 |
+| 8 | A32 | MEM_DQ_ADDR_CMD0 | R6 |
+
+Their absence from the DDR example's QSF does not imply absent baseboard
+routing. Conversely, these routes do not establish the daughtercard-side
+connections or DM/DBI mode compatibility. In particular, bit 8 uses a generic
+address/command/data connector net; its memory-device function requires the
+P12-27065R card schematic. The installed PCB revision remains unverified.
