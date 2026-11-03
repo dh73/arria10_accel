@@ -20,7 +20,7 @@ Each unstalled stream completes 257 commands in 258 cycles. The 512-bit case
 transports 16,448 line bytes and enables 10,976 bytes under the mixed-mask
 workload. This establishes command throughput in the zero-latency backend
 fixture, not full-mask peak bandwidth. No physical throughput or compiler-wide-port
-support is established. Mixed traffic, wide error/quiesce stress, compiler-port binding,
+support is established. Mixed traffic, per-response wide ECC testing, compiler-port binding,
 CDC/timing, real memory arbitration and hardware measurements remain required.
 
 ## Reproduce a width test
@@ -41,3 +41,18 @@ or error diagnostics even when the executable exits zero. The byte oracle checks
 command ordering, every enabled write byte, read data and line byte enables.
 The scalar regression additionally checks retained faults, zero-latency replies,
 queue wrap, simultaneous push/pop, quiesce, stalls and coordinated reset.
+
+## Delayed-response and fault stress
+
+`stress_tb.sv` passes at all four widths with three-cycle ordered read replies,
+full byte enables, and independent command/byte oracles. Each unstalled stream
+completes 257 writes in 258 cycles or 257 reads in 261 cycles, including fill and
+drain. At 512 bits all 16,448 transported bytes are enabled. These fixture
+measurements do not establish physical memory latency or achievable clock rate.
+
+The same runs check a stalled write remains held through quiesce and a backend
+ECC interrupt, drains exactly once after acceptance, retains the sticky fault,
+and rejects a misaligned request with its address context after coordinated reset.
+Per-response ECC, mixed traffic and physical reset behavior remain separate gates.
+Use the reproduction command above with top `width_stress_tb`, parameter
+`width_stress_tb.W`, and `stress_tb.sv`; require `WIDTH_STRESS_PASS width=...`.
