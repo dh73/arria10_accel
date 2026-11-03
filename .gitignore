@@ -42,3 +42,7 @@ ucli.key
 !/docs/ROADMAP.md
 !/docs/interface_inventory.csv
 !/docs/DEVELOPMENT.md
+
+/drivers/aclpci/DMA_INTEGRATION.md
+/drivers/aclpci/README
+/experiments/dma-status-v2/formal/VALIDATION.md
