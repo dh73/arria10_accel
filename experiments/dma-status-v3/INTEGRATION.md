@@ -31,6 +31,13 @@ Controller fetch/diagnostic acceptance inputs still require real consumers.
 Application `RdContractFault_o` and controller fault outputs require retained
 host-visible handling. Exposing them does not implement that handling.
 
+`tools/build_parent_wrapper.py --source /path/to/pcie_parent.v --output DIR`
+connects these four channels in the source-pinned HIP parent and exposes fetch
+acceptance, diagnostics and faults as `CandidateRd*` ports. It supports only
+internal-controller 256-bit AVMM DMA. Its simulation guard rejects other
+configurations; synthesis configuration and full-parent elaboration remain
+unqualified. Existing PCIe, descriptor and payload connections are retained.
+
 The retained shell connects the read mover and controller through
 `dut_rd_ast_tx_data` and `dut_rd_ast_tx_valid`. It has no status-ready or
 receipt-return wires. Replacing the two leaf modules alone is insufficient.
