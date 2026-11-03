@@ -81,3 +81,29 @@ maximum-bandwidth result. Cache behavior, physical bus counters, transfer times
 and a comparable baseline are separate measurements.
 
 [Event profiling contract](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventProfilingInfo.html).
+
+## Vector streaming kernels
+
+`streaming.cl` provides `stream_copy512(input, output, count)` and
+`stream_triad512(a, b, output, scale, count)`. Counts are 32-bit unsigned element
+counts; scale is unsigned and triad arithmetic wraps modulo 2^32. Buffers must
+be disjoint and 64-byte aligned. Launch one work item. Full groups use `uint16`
+loads/stores and the remaining 0..15 elements use scalar accesses without
+reading or writing beyond the requested count.
+
+```sh
+python3 tests/opencl/run_streaming.py --build /tmp/a10-opencl-stream
+```
+
+The host arithmetic fixture checks 70 sizes, every tail residue, five scale
+values, unchanged inputs and boundary guards. It executes the actual compiled
+kernel bodies; it does not exercise an FPGA memory port or runtime. The binary
+host currently launches only `correctness.cl`; streaming host integration is
+still required.
+
+Copy algorithm traffic is `8 * count` bytes (one read, one write); triad is
+`12 * count` bytes (two reads, one write). Report rate against actual kernel
+event durations only after numerical validation. These logical byte counts are
+not physical bus counters. A `uint16` expression does not establish a 512-bit
+external master: generated port widths, burst behavior, interconnect arbitration,
+fit/timing and physical counters must qualify the resulting memory path.
