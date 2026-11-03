@@ -19,3 +19,12 @@ Reset assumes an external transport fence. Token recurrence is permitted and
 does not prove replay exclusion. Consumer receipt/drainage are explicit reuse
 premises. The model does not prove RTL refinement, simultaneous-event ordering,
 liveness, PCIe delivery or physical memory visibility.
+
+`ReturnAddress.lean` adds seven checked arithmetic obligations: 65-bit burst
+and table bounds, accepted-beat containment, seven-bit ordinal preservation,
+aligned-address reconstruction and whole-entry containment. These assume the
+stated address/count bounds and do not prove the RTL handshake or counter.
+
+```sh
+lean experiments/dma-fetch-return-v5/formal/ReturnAddress.lean
+```
