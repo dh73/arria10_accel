@@ -68,3 +68,11 @@ routing. Conversely, these routes do not establish the daughtercard-side
 connections or DM/DBI mode compatibility. In particular, bit 8 uses a generic
 address/command/data connector net; its memory-device function requires the
 P12-27065R card schematic. The installed PCB revision remains unverified.
+
+An [Altera support reply](https://community.altera.com/discussions/boards-and-dev-kits/stratix-10-development-kit-hilo-connector/349694/replies/351202)
+provides a HiLo DDR4 schematic candidate, `150-0330621-A1 (6XX-44270)`,
+revision A. Its indexed text identifies Micron `MT40A256M16HA-093E:A` and
+`MT40A512M8HX-093E:A`, rather than the reported Elpida devices. Direct PDF
+retrieval was refused; this candidate has not received local visual or hash
+qualification. Neither its title nor connector compatibility establishes a
+match to P12-27065R. Its wiring and memory geometry are not adopted.
