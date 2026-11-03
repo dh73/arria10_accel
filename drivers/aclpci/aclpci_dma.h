@@ -65,7 +65,8 @@ struct aclpci_dma {
     struct kernel_siginfo signal;
     u64 ticket;
     /* Qualified image's zero-based byte aperture. Zero denies all transfers.
-     * Set only while admission is closed and no request is active, under lock.
+     * Set only while admission is closed and no request is active, holding
+     * the device sem then the DMA lock (PIO also uses the device sem).
      * A PCI ID or host RAM size does not establish this value. */
     u64 device_memory_bytes;
     int last_id[2];

@@ -487,6 +487,7 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   struct acl_cmd __user *ucmd;
   struct acl_cmd kcmd;
   u64 old_segment = 0;
+  u64 memory_bytes;
   int restore_segment = 0;
   void *addr = 0;
   int access_le = 0;
@@ -540,6 +541,15 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
   if (!size)
     goto done;
+  mutex_lock(&aclpci->dma_data.lock);
+  memory_bytes = aclpci->dma_data.device_memory_bytes;
+  mutex_unlock(&aclpci->dma_data.lock);
+  if (kcmd.bar_id == ACLPCI_DMA_BAR &&
+      (!memory_bytes || (u64)(unsigned long)kcmd.device_addr > memory_bytes ||
+       size > memory_bytes - (u64)(unsigned long)kcmd.device_addr)) {
+    result = -ERANGE;
+    goto done;
+  }
   if (!reading && protected_write(&kcmd, size)) {
     result = -EPERM;
     goto done;
@@ -567,7 +577,7 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
              kcmd.bar_id, (void*)kcmd.device_addr, (void*)kcmd.user_addr, size);
 
   if (!use_dma) {
-    /* Do bounds checking on addresses, for DMA we don't know memory size */
+    /* Global-memory aperture was checked before choosing DMA versus PIO. */
     if (kcmd.bar_id != ACLPCI_DMA_BAR) {
       addr = aclpci_get_checked_addr (kcmd.bar_id, kcmd.device_addr, size, aclpci, &errno, 0);
     }
@@ -601,12 +611,42 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
 
 
+  /* Raw BAR access to the memory window must obey the same image aperture.
+   * A window access may not straddle into control registers. Read the actual
+   * segment if its shadow has not yet been established. */
+  if (kcmd.bar_id == ACL_PCIE_MEMWINDOW_BAR &&
+      overlaps((unsigned long)kcmd.device_addr, size,
+               ACL_PCIE_MEMWINDOW_BASE, ACL_PCIE_MEMWINDOW_SIZE)) {
+    u64 offset = (unsigned long)kcmd.device_addr;
+    u64 segment;
+    if (offset < ACL_PCIE_MEMWINDOW_BASE ||
+        offset - ACL_PCIE_MEMWINDOW_BASE >= ACL_PCIE_MEMWINDOW_SIZE ||
+        size > ACL_PCIE_MEMWINDOW_SIZE - (offset - ACL_PCIE_MEMWINDOW_BASE) ||
+        !memory_bytes) {
+      result = -ERANGE;
+      goto done;
+    }
+    if (!aclpci->global_mem_segment_valid) {
+      aclpci->global_mem_segment = readq(aclpci->global_mem_segment_addr);
+      aclpci->global_mem_segment_valid = true;
+    }
+    segment = aclpci->global_mem_segment;
+    offset -= ACL_PCIE_MEMWINDOW_BASE;
+    if (segment % ACL_PCIE_MEMWINDOW_SIZE || segment > memory_bytes ||
+        offset > memory_bytes - segment ||
+        size > memory_bytes - segment - offset) {
+      result = -ERANGE;
+      goto done;
+    }
+  }
+
+
   /* Segment writes have one user copy, one hardware write, and then a
    * shadow update. Refuse partial/overlapping writes that bypass the shadow. */
   if (!reading && kcmd.bar_id == ACL_PCIE_MEMWINDOW_BAR &&
       overlaps((unsigned long)kcmd.device_addr, size,
                ACL_PCIE_MEMWINDOW_CRA, sizeof(u64))) {
-    u64 segment;
+    u64 segment, checked_segment;
 
     if (addr != aclpci->global_mem_segment_addr || size != sizeof(segment)) {
       result = -EINVAL;
@@ -616,13 +656,20 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
       result = -EFAULT;
       goto done;
     }
+    /* In either access mode the register consumes a little-endian value. */
+    checked_segment = access_le ? segment : le64_to_cpu((__le64)segment);
+    if (!memory_bytes || checked_segment >= memory_bytes ||
+        checked_segment % ACL_PCIE_MEMWINDOW_SIZE) {
+      result = -ERANGE;
+      goto done;
+    }
     if (access_le) {
       writeq(segment, addr);
     } else {
       __raw_writel(((u32 *)&segment)[0], addr);
       mb();
       __raw_writel(((u32 *)&segment)[1], (u8 *)addr + sizeof(u32));
-      segment = le64_to_cpu((__le64)segment);
+      segment = checked_segment;
     }
     aclpci->global_mem_segment = segment;
     aclpci->global_mem_segment_valid = true;

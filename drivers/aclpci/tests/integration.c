@@ -465,6 +465,65 @@ static void test_engine_aperture(void)
     }
     puts("PASS aperture: both directions, unknown/high/crossing/multibatch rejected before MMIO or pinning; exact-end retires");
 }
+static void test_pio_aperture(void)
+{
+    struct inode inode = { .i_cdev = &cdev, .minor = 0 };
+    struct file fd = { 0 };
+    u64 capacity = 1ULL << 31, segment;
+    u32 value = 0xabcdef01;
+    struct acl_cmd command = { .bar_id = ACLPCI_DMA_BAR, .size = 4,
+                              .user_addr = &value };
+    unsigned int direction, writes;
+    init_engine();
+    assert(!aclpci_open(&inode, &fd));
+    for (direction = 0; direction < 2; ++direction) {
+        const u64 bad[] = {capacity, capacity + 4, 1ULL << 32, UINT64_MAX - 3};
+        unsigned int i;
+        writes = test.mmio_writes;
+        for (i = 0; i < ARRAY_SIZE(bad); ++i) {
+            command.device_addr = (void *)(uintptr_t)bad[i];
+            assert(aclpci_rw(&fd, (char *)&command, sizeof(command), NULL,
+                             direction) == -ERANGE);
+        }
+        device.dma_data.device_memory_bytes = 0;
+        command.device_addr = 0;
+        assert(aclpci_rw(&fd, (char *)&command, sizeof(command), NULL,
+                         direction) == -ERANGE);
+        device.dma_data.device_memory_bytes = capacity;
+        assert(test.mmio_writes == writes && !test.pin_calls);
+    }
+    command.bar_id = ACL_PCIE_MEMWINDOW_BAR;
+    command.device_addr = (void *)ACL_PCIE_MEMWINDOW_CRA;
+    command.size = 8;
+    command.user_addr = &segment;
+    writes = test.mmio_writes;
+    segment = capacity;
+    assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -ERANGE);
+    segment = 1;
+    assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -ERANGE);
+    assert(test.mmio_writes == writes);
+    segment = capacity - ACL_PCIE_MEMWINDOW_SIZE;
+    assert(!aclpci_write(&fd, (char *)&command, sizeof(command), NULL));
+    command.device_addr = (void *)(ACL_PCIE_MEMWINDOW_BASE + ACL_PCIE_MEMWINDOW_SIZE - 4);
+    command.size = 4;
+    command.user_addr = &value;
+    assert(!aclpci_write(&fd, (char *)&command, sizeof(command), NULL));
+    /* An image can expose only part of its final window. Raw BAR access must
+     * not bypass that bound even with a valid aligned segment register. */
+    device.dma_data.device_memory_bytes = capacity - 4;
+    writes = test.mmio_writes;
+    assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -ERANGE);
+    assert(aclpci_read(&fd, (char *)&command, sizeof(command), NULL) == -ERANGE);
+    assert(test.mmio_writes == writes);
+    device.dma_data.device_memory_bytes = capacity;
+    /* An untrusted retained hardware segment is checked before data access. */
+    *(u64 *)((char *)bar4 + ACL_PCIE_MEMWINDOW_CRA) = UINT64_MAX - 65535;
+    device.global_mem_segment_valid = false;
+    assert(aclpci_read(&fd, (char *)&command, sizeof(command), NULL) == -ERANGE);
+    assert(!aclpci_close(&inode, &fd));
+    finish_engine();
+    puts("PASS PIO aperture: global and raw-window paths, segment alignment/range, exact-end and partial final window");
+}
 static void test_engine_multitable(void)
 {
     struct aclpci_dma *d;
@@ -822,12 +881,13 @@ int main(void)
     test_offsets_and_owner();
     test_engine_init_and_sync_errors();
     test_engine_aperture();
+    test_pio_aperture();
     test_engine_multitable();
     test_engine_running_worker_irq();
     test_engine_stop_retention();
     test_engine_bad_status_and_bounds();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
-    puts("PASS all ten executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all eleven executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }
