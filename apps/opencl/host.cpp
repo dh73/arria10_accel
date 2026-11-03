@@ -61,6 +61,14 @@ cl_device_id select_device(const std::string& platform, const std::string& name)
     if (identity.find(word)!=std::string::npos) throw std::runtime_error("Nonphysical identity refused");
   return selected;
 }
+struct Timing { cl_ulong start, end; };
+Timing timing(cl_event event) {
+  Timing t{};
+  check(clGetEventProfilingInfo(event,CL_PROFILING_COMMAND_START,sizeof(t.start),&t.start,nullptr),"profile start");
+  check(clGetEventProfilingInfo(event,CL_PROFILING_COMMAND_END,sizeof(t.end),&t.end,nullptr),"profile end");
+  if (t.end <= t.start) throw std::runtime_error("Unresolved or reversed event duration");
+  return t;
+}
 void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel second, cl_uint n) {
   std::vector<cl_uint> a(n),b(n),out(n,0xa5a5a5a5U);
   cl_uint state=0x6d2b79f5U ^ n;
@@ -86,6 +94,15 @@ void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel 
   check(clFinish(queue),"finish");
   for(cl_uint i=0;i<n;++i) if(out[i]!=asus_a10::workload_reference(a[i],b[i],i))
     throw std::runtime_error("Mismatch count="+std::to_string(n)+" index="+std::to_string(i));
+  const auto t1=timing(e1.value),t2=timing(e2.value);
+  if (t2.start<t1.end) throw std::runtime_error("Dependent kernel timestamps overlap");
+  const auto elapsed=t2.end-t1.start;
+  // Two reads and one write per element, per pass: algorithm traffic only.
+  const std::uint64_t algorithm_bytes=std::uint64_t(n)*24;
+  std::cout<<"OPENCL_KERNEL_TIMING count="<<n
+           <<" pass1_ns="<<(t1.end-t1.start)<<" pass2_ns="<<(t2.end-t2.start)
+           <<" span_ns="<<elapsed<<" algorithm_bytes="<<algorithm_bytes
+           <<" algorithm_GBps="<<(double(algorithm_bytes)/double(elapsed))<<'\n';
   std::cout<<"OPENCL_DEVICE_DATA_PASS count="<<n<<'\n';
 }
 }
@@ -100,8 +117,12 @@ int main(int argc,char** argv) {
     if(input.bad() || binary.empty()) throw std::runtime_error("Empty or unreadable device binary");
     auto device=select_device(argv[3],argv[4]);cl_int error=0;
     std::cout<<"platform="<<argv[3]<<"\ndevice="<<argv[4]<<"\ndriver="<<device_string(device,CL_DRIVER_VERSION)<<'\n';
+    size_t timer_resolution=0;
+    check(clGetDeviceInfo(device,CL_DEVICE_PROFILING_TIMER_RESOLUTION,sizeof(timer_resolution),&timer_resolution,nullptr),"timer resolution");
+    if(!timer_resolution) throw std::runtime_error("Invalid profiling timer resolution");
+    std::cout<<"profiling_timer_resolution_ns="<<timer_resolution<<'\n';
     Context context;context.value=clCreateContext(nullptr,1,&device,nullptr,nullptr,&error);check(error,"context");
-    Queue queue;queue.value=clCreateCommandQueue(context.value,device,0,&error);check(error,"queue");
+    Queue queue;queue.value=clCreateCommandQueue(context.value,device,CL_QUEUE_PROFILING_ENABLE,&error);check(error,"queue");
     Program program;const unsigned char* data=binary.data();size_t length=binary.size();cl_int binary_status=0;
     program.value=clCreateProgramWithBinary(context.value,1,&device,&length,&data,&binary_status,&error);
     check(error,"program binary");check(binary_status,"device binary status");

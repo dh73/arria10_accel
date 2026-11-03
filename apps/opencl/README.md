@@ -64,3 +64,20 @@ API call on the successful path is independently failed; separate cases reject
 duplicate identity, invalid binary status and corrupted readback. The fixture
 is synchronous: it does not qualify runtime scheduling, asynchronous object
 retention, DMA, device faults or physical execution.
+
+## Timing output
+
+The queue enables event profiling and reports timer resolution, both kernel
+execution durations and the span from pass1 start to pass2 end. A missing,
+zero-duration, reversed or overlapping dependent timestamp fails measurement.
+Small cases can fall below the timer resolution and require a longer workload
+before a rate can be reported.
+
+`algorithm_bytes = 24 * count` counts two logical 32-bit reads and one write
+per element in each of two passes. `algorithm_GBps = algorithm_bytes / span_ns`
+uses decimal GB/s and includes the inter-kernel gap. This is an algorithm-level
+rate, not measured DDR bus traffic, PCIe bandwidth, end-to-end throughput or a
+maximum-bandwidth result. Cache behavior, physical bus counters, transfer times
+and a comparable baseline are separate measurements.
+
+[Event profiling contract](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventProfilingInfo.html).
