@@ -23,7 +23,11 @@ proc ::c126::diag_collection {node} {
     }
     foreach_in_collection found $result {
         if {$found ne $node || [get_node_info -name $found] ne $name} {
-            error "Native diagnostic collection resolves another object: $name"
+            error [list NATIVE_OBJECT_IDENTITY_MISMATCH \
+                expected_id $node expected_name $name \
+                expected_type [get_node_info -type $node] \
+                actual_id $found actual_name [get_node_info -name $found] \
+                actual_type [get_node_info -type $found]]
         }
     }
     return $result
