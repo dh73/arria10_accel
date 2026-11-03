@@ -71,3 +71,15 @@ receipts, error retention, reset and token recurrence. Component tests do not
 establish those properties for the shell. Physical payload visibility and
 host-removal containment remain separate requirements; DMA admission stays
 disabled.
+
+`tests/adapt_side_fifo.py --source ../dma-status-v2/tests/read_dma_candidate_v2_tb.sv --output /new/path/read_dma_side_fifo_v3_tb.sv`
+derives a read-only producer test with the actual depth-16 FIFO and the
+application's registered input stage. Compile the generated test with the v3
+read engine, owner, status package, unchanged FIFO and memory models. Run
+`+SCENARIO=0 +N=8 +MODE=0` through `+MODE=5`.
+The test blocks downstream reads until near-full occupancy, verifies issue
+stops during a held stall, then drains intermittently. It checks all 16 request
+headers for loss/reordering, checks the full five-bit occupancy stays below
+16, and retains payload/status/receipt checks. It does not model RXM/TXS
+writers or prove the shared arbiter's occupancy bound. Execution results are
+separate from this test definition.
