@@ -106,8 +106,8 @@ class RetainedSdcControls(unittest.TestCase):
         self.source = self.base / 'qdb/default.sdc'
 
     def check(self, path=None):
-        return self.t.call('::c126::check_default_sdc', str(path or self.source),
-                           str(self.copy), str(self.base))
+        return str(self.t.call('::c126::check_default_sdc', str(path or self.source),
+                               str(self.copy), str(self.base)))
 
     def test_byte_identical_retained_generated_constraint(self):
         self.assertEqual(self.check(), str(self.copy / 'qdb/default.sdc'))
