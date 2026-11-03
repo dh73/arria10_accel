@@ -18,3 +18,10 @@ without an end-to-end witness.
 Other port-width, encrypted-model and transceiver diagnostics remain open.
 No warning suppression, RTL replacement or new hardware operation is implied
 by this classification.
+
+The updated configured parent also elaborates with fetch-valid and fetch-data
+connected through all containing modules. All 97 source/model hashes match
+that snapshot. Diagnostic category counts match the preceding build, including
+29 width warnings and 49 missing-port lint messages. Those counts do not prove
+behavioral equivalence or resolve the obligations above. Full-parent simulation,
+fetch-consumer behavior and hardware acceptance remain unqualified.
