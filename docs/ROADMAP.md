@@ -36,7 +36,9 @@ closure. Physical acceptance and complete platform support remain outstanding.
 
 Five historical fetch-controller simulation passes are withdrawn: their logs
 contain an unsupported FIFO-model family error that the old result parser
-missed. Requalification uses compatible models and rejects that diagnostic.
-The 24 consumer cases and abstract proof are separate evidence. Older aggregate
-claims of 29 passing cases must not be used until controller requalification is
-accepted. Original review inputs and logs remain preserved.
+missed. All five controller cases now pass requalification with compatible
+models and strict diagnostic checks; 22 input hashes and the native logs were
+verified. The 24 consumer cases and abstract proof remain separate evidence.
+Use the new controller qualification rather than the original contaminated runs.
+Full-parent behavior is still unqualified. Original review inputs and logs
+remain preserved.
