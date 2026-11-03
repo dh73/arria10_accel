@@ -94,3 +94,39 @@ if(A10_BUILD_KERNEL_EXECUTOR)
     message(STATUS "Snapshot mode: compiler-source CRA regression requires a source build")
   endif()
 endif()
+
+option(A10_BUILD_SHELL_IDENTITY "Build read-only future-shell identity decoder" ON)
+if(A10_BUILD_KERNEL_EXECUTOR AND A10_BUILD_SHELL_IDENTITY)
+  add_library(a10_shell_identity STATIC src/shell_identity_v1.cpp)
+  target_link_libraries(a10_shell_identity PUBLIC a10_generated_kernel_executor)
+  target_compile_options(a10_shell_identity PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_executable(a10_shell_identity_test tests/shell_identity_v1_test.cpp)
+  target_link_libraries(a10_shell_identity_test PRIVATE a10_shell_identity)
+  target_compile_options(a10_shell_identity_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME a10_shell_identity COMMAND a10_shell_identity_test)
+  set_tests_properties(a10_shell_identity PROPERTIES
+    PASS_REGULAR_EXPRESSION "A10_IDENTITY_HOST_PASS"
+    FAIL_REGULAR_EXPRESSION "Fatal:|Error!|Error:|Error-\\[")
+  add_test(NAME a10_shell_identity_codegen
+    COMMAND "${Python3_EXECUTABLE}" "${a10_repo}/tools/test_shell_identity_codegen.py")
+
+  # Explicit retained build bundle: no default shell mapping or physical transport.
+  set(A10_SHELL_IDENTITY_PREPARED_DIR "" CACHE PATH
+      "Output directory of shell_identity_codegen.py prepare for this exact build")
+  if(A10_SHELL_IDENTITY_PREPARED_DIR)
+    if(A10_KERNEL_EXECUTOR_SNAPSHOT_ONLY)
+      message(FATAL_ERROR "A retained shell build requires re-extracted generated sources")
+    endif()
+    foreach(item prepared.json shell_identity_params.svh shell_identity_expected.hpp)
+      if(NOT EXISTS "${A10_SHELL_IDENTITY_PREPARED_DIR}/${item}")
+        message(FATAL_ERROR "Missing prepared shell identity file: ${item}")
+      endif()
+    endforeach()
+    add_library(a10_shell_identity_expected INTERFACE)
+    target_link_libraries(a10_shell_identity_expected INTERFACE a10_shell_identity)
+    target_include_directories(a10_shell_identity_expected INTERFACE
+      "${A10_SHELL_IDENTITY_PREPARED_DIR}")
+    # The HDL build must consume this SAME params file at shell_identity_v1.
+    # Source/build comparison still occurs in image::check; this target grants no I/O.
+  endif()
+endif()

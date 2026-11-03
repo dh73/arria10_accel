@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -41,6 +42,10 @@ class SourceAbi final {
   SourceAbi& operator=(const SourceAbi&) = delete;
   std::uint32_t aperture_bytes() const noexcept { return aperture_bytes_; }
   SourceValidation validation() const noexcept { return validation_; }
+  // Canonical ABI plus six generated-source hashes; never a loaded-image ID.
+  const std::array<std::uint8_t, 32>& contract_sha256() const noexcept {
+    return contract_sha256_;
+  }
   std::size_t kernel_count() const noexcept { return kernels_.size(); }
   const KernelDescriptor& kernel(std::size_t index) const { return kernels_.at(index); }
   std::size_t source_hash_count() const noexcept { return hashes_.size(); }
@@ -50,6 +55,7 @@ class SourceAbi final {
   friend const SourceAbi& generated_abi();
   SourceAbi();
   std::uint32_t aperture_bytes_{0};
+  std::array<std::uint8_t, 32> contract_sha256_{};
   SourceValidation validation_{SourceValidation::SuppliedSnapshot};
   std::vector<KernelDescriptor> kernels_;
   std::vector<SourceHash> hashes_;

@@ -38,6 +38,15 @@ The driver enforces DMA/PIO memory apertures and compiles on both host kernels,
 but production admission remains disabled. C126 still lacks overall timing
 closure. Physical acceptance and complete platform support remain outstanding.
 
+## Shell identity
+
+The read-only identity block, host decoder and source/build association generator
+pass host tests and native RTL-to-C++ transcript checks. Thirteen abstract Lean
+obligations cover publication, invalidation and sequence exhaustion. The block
+has no default BAR and grants no admission. Integration still needs a real
+management decode, coordinated session/reset context and driver-backed device
+custody; the current FPGA image remains unidentified.
+
 ## Controller validation correction
 
 Five historical fetch-controller simulation passes are withdrawn: their logs
