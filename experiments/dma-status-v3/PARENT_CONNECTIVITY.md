@@ -59,3 +59,13 @@ simulation passes 124 cases with 364 accepted commands, 364 responses and 499
 stall cycles; all five source pins match. The write path is not exercised by
 this test. This does not qualify CDC timing, the actual memory controller's
 read-mask behavior, descriptor retirement, or the complete parent-to-DDR path.
+
+`rtl/dma_memory_path_candidate.sv` composes the mask-aware payload with the
+retained `arria10_dma_ddr_mux`. A separate line requester models contention;
+it is not an integrated processor. The mux fault feeds payload memory health,
+and the payload's lock preserves burst ownership at the arbiter.
+`tests/memory_path_tb.sv` adds partial writes with gaps, readback, competing
+line reads, delayed responses and a byte-addressed memory scoreboard. Disabled
+read bytes return unknown data so the test cannot rely on their contents.
+Native qualification is pending. This composition still excludes the HIP,
+descriptor consumer, physical EMIF, CDC constraints and hardware acceptance.
