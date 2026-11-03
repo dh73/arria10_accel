@@ -26,7 +26,9 @@
   6,801 descriptors and 423,475 packets per stress seed, nine original-defect
   witnesses, twelve corrected runs and fifteen abstract proof obligations.
   Reserved completion capacity, saved metadata and accepted status/MSI retirement
-  are checked locally. PCIe host delivery and full-parent composition remain open.
+  are checked locally. The containing derivative elaborates 357 modules with
+  retirement diagnostics exposed and no new design-warning signatures. PCIe
+  host delivery and full-parent simulation remain open.
 * Compose both directions with DDR initialization, arbitration and supervision.
   Establish reset epochs, error custody, diagnostic storage, interrupt behavior
   and host-visible retirement before connecting the production transport.

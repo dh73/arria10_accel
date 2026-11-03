@@ -204,3 +204,22 @@ Next integrate the descriptor-fetch return path and this controller into the
 containing parent, route retained faults to supervision, and validate shared
 payload/status ordering. Full-parent simulation and physical acceptance are
 not established. Production driver admission remains disabled.
+
+## Containing hierarchy
+
+`integrate_parent.py` creates a separate derivative of the pinned v5 fetch
+hierarchy. It installs the qualified write controller, count/status producer,
+and accepted-valid pulse connection. Four retained retirement diagnostic/busy
+outputs are carried through the configured top. The read controller retains
+its original TX include; the write controller uses its own corrected include.
+
+```sh
+python3 experiments/dma-d2h-composition-v1/integrate_parent.py \
+  --fetch-generated "$FETCH_GENERATED" --d2h-generated "$D2H_GENERATED" \
+  --out "$NEW_PARENT_DIRECTORY"
+```
+
+The configured derivative elaborates 357 modules with 107 source pins checked
+and no new design-warning signatures. Existing warnings remain unresolved.
+This does not qualify bidirectional simulation, fault handling by a containing
+supervisor, posted-write ordering or host visibility.
