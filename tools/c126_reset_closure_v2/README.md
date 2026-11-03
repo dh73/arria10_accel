@@ -12,5 +12,24 @@ deassertion, an ignored between-edge pulse, calibration completion and reset.
 This validates deterministic sampling, not metastability or hard-IP reset safety.
 Native timing validation remains pending.
 
+## Fitted reset connectivity
+
+The retained fitted-netlist diagnostic resolves all 22 assessment endpoints in
+17 cells, with matching assessment clocks. Tracing enabled edges from the
+external reset reaches these endpoint classes:
+
+| Endpoints | Primitive | Entry pin | Final timing-model arc |
+| --- | --- | --- | --- |
+| 12 PHY registers | `twentynm_io_12_lane` | `reset_n` | Asynchronous |
+| 6 controller registers | `twentynm_tile_ctrl` | `global_reset_n` | Asynchronous |
+| 3 auxiliary registers | `twentynm_io_aux` | `core_usr_reset_n` | Asynchronous |
+| 1 soft synchronizer stage | `twentynm_ff` | `asdata` | Synchronous |
+
+The auxiliary JTAG register has no observed clock. The other endpoints retain
+their distinct reference, PHY and calibration clocks. These are timing-model
+observations, not an internal hard-IP synchronization guarantee. Keep the 21
+hard-IP recovery/removal obligations open until their release contract is
+established; the soft-stage exception must not expand to them.
+
 Status outputs remain timed by default. Observation-only treatment is an
 explicit mode and does not establish physical pin or board qualification.
