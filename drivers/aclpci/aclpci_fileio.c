@@ -157,6 +157,7 @@ int aclpci_control_claim(struct aclpci_file *owner)
   if (a->dma_data.active || a->dma_data.fault || a->control_debt)
     result = -EBUSY;
   else {
+    aclpci_startup_revoke(&a->control_startup);
     aclpci_file_get(owner);
     a->control_owner = owner;
   }
@@ -185,6 +186,7 @@ int aclpci_control_release_unused(struct aclpci_file *owner)
   a = owner->aclpci;
   if (a->control_owner != owner) return -EPERM;
   if (a->control_debt) return -EBUSY;
+  aclpci_startup_revoke(&a->control_startup);
   a->control_owner = NULL;
   aclpci_file_put(owner);
   return 0;
@@ -254,8 +256,10 @@ int aclpci_close(struct inode *inode, struct file *file)
   /* release must finish its bookkeeping even when the caller has a signal. */
   down(&aclpci->sem);
   owner->closed = true;
-  if (aclpci->control_owner == owner)
+  if (aclpci->control_owner == owner) {
+    aclpci_startup_revoke(&aclpci->control_startup);
     aclpci_control_release_unused(owner); /* Debt intentionally retains custody. */
+  }
   --aclpci->num_handles_open;
   if (!aclpci->num_handles_open) {
     if (aclpci->online) {

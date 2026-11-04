@@ -436,6 +436,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id)
   if (!a)
     return -ENOMEM;
   kref_init(&a->ref);
+  aclpci_startup_revoke(&a->control_startup);
   sema_init(&a->sem, 1);
   spin_lock_init(&a->signal_lock);
   spin_lock_init(&a->irq_lock);
@@ -511,6 +512,7 @@ static void remove(struct pci_dev *dev)
   down(&a->sem);
   WRITE_ONCE(a->online, false);
   a->removed = true;
+  aclpci_startup_revoke(&a->control_startup);
   WRITE_ONCE(a->io_blocked, true);
   remove_chrdev(a);
   aclpci_dma_stop(a);

@@ -38,6 +38,7 @@
 
 #ifndef ACLPCI_H
 #define ACLPCI_H
+#include "aclpci_startup.h"
 
 
 #include <linux/semaphore.h>
@@ -158,6 +159,7 @@ struct aclpci_dev {
   /* Device sem protects exclusive lifecycle custody, retained beyond close. */
   struct aclpci_file *control_owner;
   bool control_debt;
+  struct aclpci_startup control_startup;
   int irq_number;
   struct list_head quarantine_link;
   /* sem serializes process-context I/O, open, close and remove. The DMA

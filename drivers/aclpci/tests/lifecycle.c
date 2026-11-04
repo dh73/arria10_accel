@@ -167,11 +167,13 @@ static void retained_remove(bool control_debt)
     a = p.data;
     a->dma_data.active = !control_debt;
     a->control_debt = control_debt;
+    a->control_startup.result = control_debt ? 1 : 0;
     module_refs = 1; /* The request's independent file context module pin. */
     order_count = 0;
     order[0] = 0;
     driver_remove(&p);
     assert(a->quarantined && a->removed && !a->online);
+    assert(a->control_startup.result == -ESTALE);
     assert(p.data == a && p.enabled && p.regions && p.master);
     assert(!irq_requested && !p.msi && !node_objects && !cdev_objects);
     assert(dma_objects == 3 && mapped_bars == 2 && heap_objects == 2);

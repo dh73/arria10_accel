@@ -5,6 +5,8 @@
 #include "../aclpci_dma_request.c"
 #include "../aclpci_round_fence.c"
 #include "../aclpci_supervisor_command.c"
+#include "../aclpci_context_provision.c"
+#include "../aclpci_startup.c"
 #include "../aclpci_dma.c"
 #include "../aclpci_fileio.c"
 
@@ -875,12 +877,14 @@ static void test_exclusive_control_custody(void)
     assert(!device.control_owner && !device.control_debt);
     down(&device.sem);
     assert(!aclpci_control_claim(peer));
+    device.control_startup.result = 1; /* A completed START is still revocable. */
     assert(!aclpci_control_mark_issued(peer));
     assert(aclpci_control_release_unused(peer) == -EBUSY);
     up(&device.sem);
     flushes = test.flushes;
     assert(!aclpci_close(&inode, &second));
     assert(device.control_owner == peer && peer->closed && peer->ref.refs == 1);
+    assert(device.control_startup.result == -ESTALE);
     assert(test.device_refs == 2 && test.module_refs == 1);
     assert(test.flushes == flushes && !device.dma_data.active);
     assert(!aclpci_open(&inode, &first));

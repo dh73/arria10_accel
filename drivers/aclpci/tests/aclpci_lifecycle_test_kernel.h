@@ -72,6 +72,7 @@
 typedef uint8_t u8;
 typedef uint32_t u32;
 typedef uint64_t u64;
+#include "../aclpci_startup.h"
 typedef uint64_t resource_size_t;
 typedef long long test_loff_t;
 typedef int irqreturn_t;
@@ -118,6 +119,7 @@ struct aclpci_dma { bool contract_valid, initialized, active; void *wq, *tables[
 struct aclpci_dev {
     struct aclpci_file *control_owner;
     bool control_debt;
+    struct aclpci_startup control_startup;
     struct kref ref;
     bool online, removed, io_blocked, saved_state, irq_registered, msi_enabled, quarantined;
     int irq_number;

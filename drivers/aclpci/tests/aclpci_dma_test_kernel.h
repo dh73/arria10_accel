@@ -79,6 +79,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+#include "../aclpci_startup.h"
 typedef uint32_t __le32;
 typedef uint64_t __le64;
 typedef uint64_t dma_addr_t;
@@ -237,6 +238,7 @@ static inline void enable_irq(int n) { (void)n; ++test.irq_enables; }
 struct aclpci_dev {
     struct aclpci_file *control_owner;
     bool control_debt;
+    struct aclpci_startup control_startup;
     struct pci_dev *pci_dev;
     struct aclpci_dma dma_data;
     void *bar[5];

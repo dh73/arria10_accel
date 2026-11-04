@@ -14,8 +14,14 @@ ${CC:-cc} -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g \
     ${CFLAGS:-} -I "$here" -I "$tmp" -DACLPCI_DMA_TEST -DACLPCI_FILEIO_TEST \
     "$here/integration.c" -o "$tmp/integration"
 "$tmp/integration"
+mkdir -p "$tmp/lifecycle-headers/linux"
+printf '#include <stdint.h>\ntypedef uint32_t u32;\ntypedef uint64_t u64;\n' > "$tmp/lifecycle-headers/linux/types.h"
+printf '#include <asm-generic/errno.h>\n' > "$tmp/lifecycle-headers/linux/errno.h"
+printf '#include <string.h>\n' > "$tmp/lifecycle-headers/linux/string.h"
 ${CC:-cc} -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g \
-    ${CFLAGS:-} -I "$here" "$here/lifecycle.c" -o "$tmp/lifecycle"
+    ${CFLAGS:-} -I "$here" -I "$tmp/lifecycle-headers" "$here/lifecycle.c" \
+    "$here/../aclpci_startup.c" "$here/../aclpci_context_provision.c" \
+    "$here/../aclpci_round_fence.c" "$here/../aclpci_supervisor_command.c" -o "$tmp/lifecycle"
 "$tmp/lifecycle"
 ${CC:-cc} -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g \
     ${CFLAGS:-} -I "$here" -I "$tmp" "$here/context_provision.c" -o "$tmp/context_provision"
