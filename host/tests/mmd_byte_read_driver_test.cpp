@@ -5,6 +5,7 @@
 #include <iostream>
 extern "C" {
 void receipt_fixture_begin();long receipt_fixture_read(void*,unsigned long);
+long receipt_fixture_write(void*,unsigned long);
 void receipt_fixture_stop();void receipt_fixture_complete();void receipt_fixture_finish();
 }
 using namespace asus::a10;using namespace asus::a10::mmd;
@@ -17,6 +18,15 @@ static ssize_t reader(int,void* p,std::size_t n){
   assert(!(dma_address&3)&&!(dma_bytes&3)&&!(reinterpret_cast<std::uintptr_t>(dma_buffer)&3));
  }
  return receipt_fixture_read(p,n);
+}
+static ssize_t writer(int,void* p,std::size_t n){
+ auto* cmd=static_cast<acl_cmd*>(p);
+ if(cmd->command==ACLPCI_CMD_DMA_SUBMIT){
+  ++submissions;dma_buffer=cmd->user_addr;dma_bytes=cmd->size;
+  dma_address=reinterpret_cast<std::uintptr_t>(cmd->device_addr);
+  assert(!(reinterpret_cast<std::uintptr_t>(dma_buffer)&3));
+ }
+ return receipt_fixture_write(p,n);
 }
 int main(){
  unsigned cases=0;
@@ -43,5 +53,28 @@ int main(){
  unsigned char byte;Request invalid{Kind::Read,7,2,std::numeric_limits<std::size_t>::max(),0,&byte,{2,1}};
  DriverDmaOperation op(91,invalid,[](dma::Ticket,int,dma::DrainEvidence){assert(false);},reader,reader);
  auto before=submissions;assert(op.submit()==Submission::NotAccepted&&submissions==before);
+ unsigned write_cases=0;
+ for(unsigned head=0;head<4;++head)for(unsigned length:{4u,8u,64u})for(bool cancel:{false,true}){
+  receipt_fixture_begin();submissions=0;int callbacks=0;
+  alignas(4) unsigned char source[80],saved[80];
+  for(unsigned i=0;i<80;++i)source[i]=static_cast<unsigned char>(i*17+3);
+  std::memcpy(saved,source,80);
+  Request request{Kind::Write,7,length,0,0x200004,source+head,{3,1}};
+  DriverDmaOperation write(91,request,[&](dma::Ticket,int result,dma::DrainEvidence evidence){
+   assert(result==(cancel?-ECANCELED:0)&&evidence==dma::DrainEvidence::PerOperation);++callbacks;
+  },reader,writer);
+  assert(write.submit()==Submission::Accepted&&submissions==1);
+  assert(dma_address==0x200004&&dma_bytes==length);
+  assert(!std::memcmp(dma_buffer,source+head,length));
+  assert((head==0)==(dma_buffer==source+head));
+  if(head)std::memset(dma_buffer,0x98,length); // Detect incorrect write copyback.
+  if(cancel)receipt_fixture_stop();
+  assert(!callbacks);receipt_fixture_complete();
+  assert(write.service()==DriverDmaOperation::Service::Delivered&&callbacks==1);
+  assert(!std::memcmp(saved,source,80));
+  assert(write.service()==DriverDmaOperation::Service::AlreadyDelivered);
+  receipt_fixture_finish();++write_cases;
+ }
+ std::cout<<"MMD_WRITE_STAGING_PASS cases="<<write_cases<<" aligned_bulk no_copyback cancellation\n";
  std::cout<<"MMD_BYTE_READ_PASS cases="<<cases<<" exact_slice cancellation bounds no_early_copy\n";
 }

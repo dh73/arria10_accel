@@ -32,6 +32,19 @@ class DriverDmaOperation {
         bounce_.resize(dma_bytes_);dma_buffer_=bounce_.data();
       }
     }
+    if(request.kind==Kind::Write && request.staging && request.size){
+      const auto maximum=std::numeric_limits<std::size_t>::max();
+      if((dma_address_&3) || (dma_bytes_&3) || dma_bytes_>maximum-dma_address_ ||
+         dma_bytes_>std::size_t(std::numeric_limits<ssize_t>::max())){
+        layout_valid_=false;return;
+      }
+      // Stripping a masked head can leave bulk source staging unaligned.
+      // Snapshot it before submission; never copy a write bounce back to source.
+      if(reinterpret_cast<std::uintptr_t>(request.staging)&3){
+        bounce_.resize(dma_bytes_);dma_buffer_=bounce_.data();
+        std::memcpy(dma_buffer_,request.staging,dma_bytes_);
+      }
+    }
   }
   DriverDmaOperation(const DriverDmaOperation&)=delete;
   DriverDmaOperation& operator=(const DriverDmaOperation&)=delete;
@@ -55,7 +68,7 @@ class DriverDmaOperation {
     if(state==AclPciDmaClient::State::Unknown)return Service::Attention;
     if(state!=AclPciDmaClient::State::Drained)return Service::Retained;
     delivered_=true;
-    if(!client_.result() && !bounce_.empty())
+    if(request_.kind==Kind::Read && !client_.result() && !bounce_.empty())
       std::memcpy(request_.staging,bounce_.data()+prefix_,request_.size);
     try {completion_(request_.ticket,client_.result(),dma::DrainEvidence::PerOperation);}
     catch(...) {failed_=true;return Service::CallbackFailed;}

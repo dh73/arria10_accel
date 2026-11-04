@@ -299,3 +299,10 @@ target_compile_options(a10_ddr_byte_write PRIVATE -Wall -Wextra -Wpedantic -Werr
 add_executable(a10_ddr_byte_write_test tests/ddr_byte_write_test.cpp)
 target_link_libraries(a10_ddr_byte_write_test PRIVATE a10_ddr_byte_write)
 add_test(NAME a10_ddr_byte_write COMMAND a10_ddr_byte_write_test)
+
+add_library(a10_ddr_write_plan STATIC src/ddr_write_plan.cpp)
+target_include_directories(a10_ddr_write_plan PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_compile_options(a10_ddr_write_plan PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_ddr_write_plan_test tests/ddr_write_plan_test.cpp)
+target_link_libraries(a10_ddr_write_plan_test PRIVATE a10_ddr_write_plan)
+add_test(NAME a10_ddr_write_plan COMMAND a10_ddr_write_plan_test)
