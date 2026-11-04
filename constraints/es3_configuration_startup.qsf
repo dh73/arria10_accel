@@ -1,0 +1,2 @@
+# Internal device-initialization clock; required by the 830 us startup bound.
+set_global_assignment -name START_UP_CLOCK OFF
