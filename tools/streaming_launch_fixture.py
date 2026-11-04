@@ -23,10 +23,15 @@ EXPECTED = {
 UNROLLED_EXPECTED = {name.replace('a10_streaming_', 'a10_streaming_unrolled_'): args
                      for name, args in EXPECTED.items()}
 
+MASKED_EXPECTED = {name.replace('a10_streaming_', 'a10_streaming_masked_'): args
+                   for name, args in EXPECTED.items()}
+
 
 def render(abi):
     names = {k['name'] for k in abi['kernels']}
-    expected = UNROLLED_EXPECTED if names == set(UNROLLED_EXPECTED) else EXPECTED
+    expected = next((contract for contract in
+                     (EXPECTED, UNROLLED_EXPECTED, MASKED_EXPECTED)
+                     if names == set(contract)), EXPECTED)
     require(names == set(expected),
             'expected copy and triad kernels')
     lines = ['case(base)']
