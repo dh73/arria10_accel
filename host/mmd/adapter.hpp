@@ -44,4 +44,9 @@ class Backend {
 bool install_backend(std::shared_ptr<Backend>);
 // Fence only already-ready callbacks/releases; never waits for hardware.
 bool flush_ready(int handle);
+// Internal host admission only. Accepted DMA remains owned until actual drain.
+// No transport/device closure certificate is inferred from this observation.
+bool quiesce_submissions(int handle, int terminal_status);
+bool submission_snapshot(int handle, dma::Snapshot& out);
+
 }

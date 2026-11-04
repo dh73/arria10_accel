@@ -143,6 +143,19 @@ int transfer(int h, aocl_mmd_op_t token, size_t len, void* dst,
 bool flush_ready(int h) {
   Call c(h); if (!c.d) return false; c.d->life.flush_ready(); return true;
 }
+bool quiesce_submissions(int h, int terminal_status) {
+  Call c(h); if (!c.d || terminal_status >= 0) return false;
+  // Same lock as transfer's begin: a crossing handoff is either retained as
+  // Prepared/blocking debt or rejected before calling the transport.
+  std::lock_guard<std::mutex> lock(c.d->mutex);
+  return c.d->life.quiesce(terminal_status) == dma::TransitionCode::Applied;
+}
+bool submission_snapshot(int h, dma::Snapshot& out) {
+  Call c(h); if (!c.d) return false;
+  std::lock_guard<std::mutex> lock(c.d->mutex);
+  out = c.d->life.snapshot();
+  return true;
+}
 bool install_backend(std::shared_ptr<Backend> backend) {
   auto& r = registry(); std::lock_guard<std::mutex> lock(r.mutex);
   if (!r.devices.empty() || !r.quarantined.empty()) return false;

@@ -1,5 +1,8 @@
 #include "adapter.hpp"
 #include <array>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -11,6 +14,8 @@ struct Fake : Transport {
   std::array<unsigned char,64> memory{};
   Submission outcome{Submission::Accepted};
   bool qualified{true}, early{}, throws{}, closed{};
+  std::mutex gate;std::condition_variable cv;
+  bool pause_submit=false,entered=false,release_submit=false;
   Request request{};
   Completion completion;
   bool qualified_and_owned() const noexcept override { return qualified; }
@@ -29,6 +34,10 @@ struct Fake : Transport {
   }
   Submission submit(const Request& r,Completion c) override {
     request=r; completion=std::move(c);
+    if(pause_submit) {
+      std::unique_lock<std::mutex> lock(gate);entered=true;cv.notify_all();
+      cv.wait(lock,[&]{return release_submit;});
+    }
     if(throws) throw std::runtime_error("unknown launch");
     if(early) finish();
     return outcome;
@@ -94,5 +103,23 @@ int main() {
   fake->finish(); CHECK(flush_ready(h)); CHECK(state.calls==4); // orphan: never callback
   CHECK(aocl_mmd_close(h)==0 && fake->closed);
   CHECK(aocl_mmd_close(h)<0); CHECK(install_backend(nullptr));
-  std::cout << "A10_MMD_ADAPTER_HOST_PASS\n";
+  // Quiesce races an actual adapter-to-transport handoff. No timed sleeps.
+  factory=std::make_shared<Factory>();CHECK(install_backend(factory));fake=factory->device;
+  h=aocl_mmd_open("explicit-test");CHECK(h>=0);state={};state.handle=h;
+  CHECK(aocl_mmd_set_status_handler(h,callback,&state)==0);
+  fake->pause_submit=true;int submitted=-99;
+  std::thread submitter([&]{submitted=aocl_mmd_read(h,&state,1,output,7,0);});
+  {std::unique_lock<std::mutex> lock(fake->gate);fake->cv.wait(lock,[&]{return fake->entered;});}
+  CHECK(!quiesce_submissions(h,0));CHECK(quiesce_submissions(h,-7));
+  dma::Snapshot snapshot;CHECK(submission_snapshot(h,snapshot));
+  CHECK(!snapshot.submissions_settled&&snapshot.prepared==1);
+  CHECK(aocl_mmd_write(h,nullptr,1,input,7,0)<0);
+  {std::lock_guard<std::mutex> lock(fake->gate);fake->release_submit=true;fake->cv.notify_all();}
+  submitter.join();CHECK(submitted==0);CHECK(submission_snapshot(h,snapshot));
+  CHECK(snapshot.submissions_settled&&snapshot.accepted_debt==1);
+  CHECK(flush_ready(h)&&state.calls==0);CHECK(aocl_mmd_close(h)<0);
+  fake->finish();CHECK(flush_ready(h));CHECK(state.calls==1&&state.status==-7);
+  CHECK(aocl_mmd_close(h)==0);CHECK(!submission_snapshot(h,snapshot));
+  CHECK(install_backend(nullptr));
+  std::cout << "A10_MMD_ADAPTER_HOST_PASS prepared_quiesce_race=1 drain_required=1\n";
 }
