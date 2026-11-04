@@ -123,6 +123,13 @@ def extract(source, *, packed=False):
                 offsets.add(offset)
                 args.append({'name':arg_name, 'byte_offset':offset, 'size':8,
                              'kind':arg.get('opencl_type_category'), 'rtl_bit_offset':int(low)})
+        xml_args = list(kernel.iter('ARGUMENT'))
+        require(len(xml_args) == len(args), 'argument alignment count mismatch')
+        for argument, xml_arg in zip(args, xml_args):
+            alignment = int(xml_arg.get('alignment', '0'))
+            require(0 < alignment <= 1 << 63 and alignment & (alignment-1) == 0,
+                    'missing/invalid compiler argument alignment')
+            argument['alignment_bytes'] = alignment
         result.append({'name':name,'base':base,'size':size,'start_offset':start,
                        'status_offset':status,'finished_bit':1,
                        'finish_count_offset':finish_count,'finish_count_bits':2,

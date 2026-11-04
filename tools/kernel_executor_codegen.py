@@ -71,8 +71,11 @@ def validate(abi):
             argument_names.add(name)
             require(argument.get("kind") in ("ACL_ARG_BY_VALUE", "ACL_ARG_MEM_OBJ"),
                     "unsupported argument kind")
-            for field in ("size", "rtl_bit_offset"):
+            for field in ("size", "rtl_bit_offset", "alignment_bytes"):
                 require(integer(argument.get(field)), "non-integer argument field: " + field)
+            alignment = argument['alignment_bytes']
+            require(0 < alignment <= 1 << 63 and alignment & (alignment-1) == 0,
+                    'invalid argument alignment')
             if abi["schema"] == 1:
                 require(integer(argument.get("byte_offset")) and
                         argument["byte_offset"] == 128 + index * 8 and
@@ -145,7 +148,7 @@ def source_contract(abi):
         require(required <= set(item) <= required | {"completion_accounting"},
                 "unsupported kernel fields")
         for argument in item["arguments"]:
-            require(set(argument) == {"name", "size", "kind", "rtl_bit_offset",
+            require(set(argument) == {"name", "size", "kind", "rtl_bit_offset", "alignment_bytes",
                                       "byte_offset" if abi["schema"] == 1 else "pieces"},
                     "unsupported argument fields")
         kernel = dict(item)
@@ -182,12 +185,12 @@ def render(abi, snapshot):
                      argument_bit_offset=0, bits=32),
                 dict(byte_offset=argument.get("byte_offset"), register_bit_offset=32,
                      argument_bit_offset=32, bits=32)])
-            lines.append("    {%s, %d, %s, %d, {%s}}," % (
+            lines.append("    {%s, %d, %s, %d, {%s}, UINT64_C(%d)}," % (
                 cpp_string(argument["name"]), pieces[0]["byte_offset"],
                 "true" if argument["kind"] == "ACL_ARG_MEM_OBJ" else "false",
                 argument["size"], ", ".join("{%d, %d, %d}" % (
                     p["byte_offset"], p["register_bit_offset"], p["argument_bit_offset"])
-                    for p in pieces)))
+                    for p in pieces), argument["alignment_bytes"]))
         profile = ('DelayedSnapshotV1' if kernel.get('completion_accounting') ==
                    'delayed_snapshot_v1' else 'Unqualified')
         lines.append("  }, CompletionAccounting::%s}," % profile)

@@ -26,6 +26,7 @@ struct ArgumentDescriptor {
   bool memory_object;
   std::uint8_t size;
   std::vector<ArgumentPiece> pieces;
+  std::uint64_t alignment_bytes{0};  // Zero means unknown; cannot launch.
 };
 
 struct KernelDescriptor {

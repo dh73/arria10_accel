@@ -41,7 +41,7 @@ def fixture(root, abi):
         selected = []
         for i, a in enumerate(k['arguments']):
             ET.SubElement(kernel, 'ARGUMENT', name=a['name'], size='8',
-                          is_streaming='false', opencl_type_category=a['kind'])
+                          is_streaming='false', opencl_type_category=a['kind'], alignment=str(a['alignment_bytes']))
             selected.append('assign arg_%s_select_b = kernel_arguments[%d:%d];' %
                             (a['name'], i * 64 + 63, i * 64))
             for half in (0, 1):
@@ -62,7 +62,7 @@ class CodegenTests(unittest.TestCase):
 
     def test_snapshot_identity_and_shape(self):
         self.assertEqual(source_contract_sha256(self.abi),
-                         'e9a5c334bb2bf9ab545f92a6fea0789b02cb2ea0c89cdf247e5eb4219b0e037d')
+                         'eeb9fb02fd800b68fba6b1122a7f68f9e9b46bdb21950b359370dd39fb10351b')
         data = render(self.abi, True)
         self.assertIn('SourceValidation::SuppliedSnapshot', data)
         for path, digest in self.abi['source_sha256'].items():
@@ -82,6 +82,9 @@ class CodegenTests(unittest.TestCase):
             lambda a: a['kernels'][0]['arguments'][1].update(name='arg_count'),
             lambda a: a['kernels'][0]['arguments'][1].update(byte_offset=128),
             lambda a: a['kernels'][0]['arguments'][0].update(size=True),
+            lambda a: a['kernels'][0]['arguments'][0].update(alignment_bytes=0),
+            lambda a: a['kernels'][0]['arguments'][0].update(alignment_bytes=3),
+            lambda a: a['kernels'][0]['arguments'][0].pop('alignment_bytes'),
             lambda a: a['kernels'][0]['arguments'][0].update(kind='UNKNOWN'),
             lambda a: a['source_sha256'].update({'../escape': '0' * 64}),
             lambda a: a['source_sha256'].update({'kernel_system.sv': 'bad'}),
@@ -100,10 +103,10 @@ class CodegenTests(unittest.TestCase):
         abi['schema'] = 2
         for kernel in abi['kernels']:
             kernel['arguments'] = [
-                dict(name='count', size=4, kind='ACL_ARG_BY_VALUE', rtl_bit_offset=0,
+                dict(name='count', alignment_bytes=1, size=4, kind='ACL_ARG_BY_VALUE', rtl_bit_offset=0,
                      pieces=[dict(byte_offset=128, register_bit_offset=0,
                                   argument_bit_offset=0, bits=32)]),
-                dict(name='ptr', size=8, kind='ACL_ARG_MEM_OBJ', rtl_bit_offset=32,
+                dict(name='ptr', alignment_bytes=1024, size=8, kind='ACL_ARG_MEM_OBJ', rtl_bit_offset=32,
                      pieces=[dict(byte_offset=128, register_bit_offset=32,
                                   argument_bit_offset=0, bits=32),
                              dict(byte_offset=136, register_bit_offset=0,
@@ -113,7 +116,7 @@ class CodegenTests(unittest.TestCase):
     def test_packed_widths_lanes_and_contract_identity(self):
         abi = self.packed()
         data = render(abi, True)
-        self.assertIn('{"ptr", 128, true, 8, {{128, 32, 0}, {136, 0, 32}}}', data)
+        self.assertIn('{"ptr", 128, true, 8, {{128, 32, 0}, {136, 0, 32}}, UINT64_C(1024)}', data)
         self.assertEqual(data.count('CompletionAccounting::Unqualified'), 2)
         digest = source_contract_sha256(abi)
         changed = copy.deepcopy(abi)

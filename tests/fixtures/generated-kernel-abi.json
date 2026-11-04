@@ -19,91 +19,104 @@
           "byte_offset": 128,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 0
+          "rtl_bit_offset": 0,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access",
           "byte_offset": 136,
           "size": 8,
           "kind": "ACL_ARG_MEM_OBJ",
-          "rtl_bit_offset": 64
+          "rtl_bit_offset": 64,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access1",
           "byte_offset": 144,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 128
+          "rtl_bit_offset": 128,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access2",
           "byte_offset": 152,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 192
+          "rtl_bit_offset": 192,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access4",
           "byte_offset": 160,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 256
+          "rtl_bit_offset": 256,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_a_access",
           "byte_offset": 168,
           "size": 8,
           "kind": "ACL_ARG_MEM_OBJ",
-          "rtl_bit_offset": 320
+          "rtl_bit_offset": 320,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_a_access6",
           "byte_offset": 176,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 384
+          "rtl_bit_offset": 384,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_a_access7",
           "byte_offset": 184,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 448
+          "rtl_bit_offset": 448,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_a_access9",
           "byte_offset": 192,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 512
+          "rtl_bit_offset": 512,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access",
           "byte_offset": 200,
           "size": 8,
           "kind": "ACL_ARG_MEM_OBJ",
-          "rtl_bit_offset": 576
+          "rtl_bit_offset": 576,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access11",
           "byte_offset": 208,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 640
+          "rtl_bit_offset": 640,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access12",
           "byte_offset": 216,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 704
+          "rtl_bit_offset": 704,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access14",
           "byte_offset": 224,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 768
+          "rtl_bit_offset": 768,
+          "alignment_bytes": 1
         }
       ]
     },
@@ -123,91 +136,104 @@
           "byte_offset": 128,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 0
+          "rtl_bit_offset": 0,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_output_access",
           "byte_offset": 136,
           "size": 8,
           "kind": "ACL_ARG_MEM_OBJ",
-          "rtl_bit_offset": 64
+          "rtl_bit_offset": 64,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_output_access1",
           "byte_offset": 144,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 128
+          "rtl_bit_offset": 128,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_output_access2",
           "byte_offset": 152,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 192
+          "rtl_bit_offset": 192,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_output_access4",
           "byte_offset": 160,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 256
+          "rtl_bit_offset": 256,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access",
           "byte_offset": 168,
           "size": 8,
           "kind": "ACL_ARG_MEM_OBJ",
-          "rtl_bit_offset": 320
+          "rtl_bit_offset": 320,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access6",
           "byte_offset": 176,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 384
+          "rtl_bit_offset": 384,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access7",
           "byte_offset": 184,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 448
+          "rtl_bit_offset": 448,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_temporary_access9",
           "byte_offset": 192,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 512
+          "rtl_bit_offset": 512,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access",
           "byte_offset": 200,
           "size": 8,
           "kind": "ACL_ARG_MEM_OBJ",
-          "rtl_bit_offset": 576
+          "rtl_bit_offset": 576,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access11",
           "byte_offset": 208,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 640
+          "rtl_bit_offset": 640,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access12",
           "byte_offset": 216,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 704
+          "rtl_bit_offset": 704,
+          "alignment_bytes": 1
         },
         {
           "name": "arg_b_access14",
           "byte_offset": 224,
           "size": 8,
           "kind": "ACL_ARG_BY_VALUE",
-          "rtl_bit_offset": 768
+          "rtl_bit_offset": 768,
+          "alignment_bytes": 1
         }
       ]
     }

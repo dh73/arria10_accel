@@ -35,6 +35,10 @@ std::optional<Launch> Launch::make(std::string_view name,
       return std::nullopt;
     }
     if (argument.size == 4 && found->second > UINT32_MAX) return std::nullopt;
+    if (!argument.alignment_bytes ||
+        (argument.alignment_bytes & (argument.alignment_bytes-1)) ||
+        (argument.memory_object && found->second % argument.alignment_bytes))
+      return std::nullopt;
     values.push_back(found->second);
   }
   // Allocate and combine each lane before any executor admission or I/O.
