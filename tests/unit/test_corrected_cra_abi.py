@@ -42,8 +42,8 @@ class CorrectedAbiTests(unittest.TestCase):
                             for k in abi['kernels']))
         rendered = render(abi, False)
         self.assertEqual(rendered.count('CompletionAccounting::DelayedSnapshotV1'), 2)
-        for digest in SNAPSHOT_RETIREMENT_SHA256.values():
-            self.assertIn(digest, rendered)
+        for kernel in abi['kernels']:
+            self.assertIn(SNAPSHOT_RETIREMENT_SHA256[kernel['name']], rendered)
         self.assertNotIn('read_clear_safe = true', rendered)
 
     def test_changed_arithmetic_is_rejected(self):
@@ -72,7 +72,9 @@ class CorrectedAbiTests(unittest.TestCase):
         self.assertEqual(len(lines), len(original_lines))
         self.assertEqual(sum(a != b for a, b in zip(lines, original_lines)), 2)
         abi = json.loads((out / 'abi.json').read_text())
-        for name, digest in SNAPSHOT_RETIREMENT_SHA256.items():
+        for kernel in abi['kernels']:
+            name = kernel['name']
+            digest = SNAPSHOT_RETIREMENT_SHA256[name]
             relative = f'kernel_hdl/{name}/{name}_function_cra_agent.sv'
             self.assertIn(str(out / 'candidate' / relative), lines)
             self.assertEqual(abi['source_sha256'][relative], digest)

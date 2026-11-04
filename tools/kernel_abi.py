@@ -10,9 +10,12 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
-# Exact corrected CRA bodies qualified in qualification/cra-read-clear-safe-v1.
+# Exact corrected scalar/vector CRA bodies qualified by native counter tests.
+# Vector qualification: qualification/kernel-launch-custody-v1/corrected2.
 # This identifies source accounting only, never a device/transport capability.
 SNAPSHOT_RETIREMENT_SHA256 = {
+    'a10_streaming_Copy': '813cfa3c23f5dd12153a739d797ed6269cb0d011399e1dee2200fb11b1af7d28',
+    'a10_streaming_Triad': '99945ded8689c9fea99e3208fc87df774e95a50f3073951d428d1c510e31e30d',
     'Pass1Kernel': '3f62ef3954e2d15b28752c02ab7780fa1c740ce7554e068269b81f811e6b6ff4',
     'Pass2Kernel': 'ea1a3728cf7ac66bbcc5765eb658f184d8c71bd18f740571ae8ccea91fd2c7f2',
 }
