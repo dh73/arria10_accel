@@ -1,4 +1,5 @@
 #include "driver_dma_operation.hpp"
+#include "driver_dma_copy.hpp"
 #include <cassert>
 #include <cstring>
 #include <cerrno>
@@ -14,7 +15,8 @@ static ssize_t wr(int fd,void* p,std::size_t n){assert(fd==91);return receipt_fi
 // Only hardware and kernel primitives are simulated by the retained C fixture.
 // This factory is test-only; it supplies no production discovery or qualification.
 struct DriverFixture : Transport {
- std::shared_ptr<DriverDmaOperation> operation;Request request{};
+ std::shared_ptr<DriverDmaOperation> operation;
+ std::shared_ptr<DriverDmaCopy> copy;Request request{};
  bool qualified_and_owned() const noexcept override{return true;}
  int info(aocl_mmd_info_t id,std::size_t n,void* out,std::size_t* size)override{
   if(id!=AOCL_MMD_MEMORY_INTERFACE)return -1;
@@ -24,14 +26,23 @@ struct DriverFixture : Transport {
  }
  int blocking(const Request&)noexcept override{return -1;}
  Submission submit(const Request& r,Completion c)override{
-  if(operation || r.interface_id!=7)return Submission::NotAccepted;
+  if(operation || copy || r.interface_id!=7)return Submission::NotAccepted;
+  if(r.kind==Kind::Copy){
+   copy=std::make_shared<DriverDmaCopy>(91,r,std::move(c),rd,wr);
+   auto result=copy->submit();if(result==Submission::NotAccepted)copy.reset();return result;
+  }
   request=r;operation=std::make_shared<DriverDmaOperation>(91,r,std::move(c),rd,wr);
   auto result=operation->submit();if(result==Submission::NotAccepted)operation.reset();return result;
  }
  int yield()override{return 0;} // Events explicitly delivered below; no polling.
- int close()override{return operation?-1:0;}
+ int close()override{return (operation||copy)?-1:0;}
  int interrupt_handler(aocl_mmd_interrupt_handler_fn,void*)override{return -1;}
  void event(){
+  if(copy){
+   auto retained=copy;
+   if(retained->service()==DriverDmaCopy::Service::Delivered)copy.reset();
+   return;
+  }
   auto retained=operation;assert(retained);
   auto result=retained->service();
   if(result==DriverDmaOperation::Service::Delivered)operation.reset();
@@ -67,6 +78,12 @@ int main(){
   assert(status.calls==2+cancelled&&status.result==(cancelled?-ECANCELED:0));
   for(auto byte:bytes)assert(byte==(cancelled?0x55:0xa5));
  }
+ assert(!aocl_mmd_copy(status.handle,&status,4,7,0x200000,0x200004));
+ assert(aocl_mmd_close(status.handle)<0);
+ receipt_fixture_complete();d->event();assert(flush_ready(status.handle));
+ assert(status.calls==3&&aocl_mmd_close(status.handle)<0);
+ receipt_fixture_complete();d->event();assert(flush_ready(status.handle));
+ assert(status.calls==4&&!status.result);
  assert(!aocl_mmd_close(status.handle));assert(install_backend(nullptr));receipt_fixture_finish();
- std::cout<<"MMD_ADAPTER_DRIVER_PASS staged_write drained_read cancelled_read early_irq close_retention\n";
+ std::cout<<"MMD_ADAPTER_DRIVER_PASS staged_write drained_read cancelled_read early_irq close_retention ordered_copy\n";
 }
