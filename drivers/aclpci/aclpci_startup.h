@@ -28,4 +28,14 @@ int aclpci_startup_step(struct aclpci_startup *,
                        const struct aclpci_fence_io *provision,
                        const struct aclpci_fence_io *fence,
                        const struct aclpci_fence_io *command);
+/* Production ordering: provision, upstream closure, drain fence, START.
+ * Caller closes publication and serializes lifetime across all service events.
+ * Use closed_init with closed_step; the three-window primitive above retains
+ * its historical test interface and does not itself acknowledge closure. */
+int aclpci_startup_closed_init(struct aclpci_startup *, const u32 context[6], u64 id);
+int aclpci_startup_closed_step(struct aclpci_startup *,
+    const struct aclpci_fence_io *provision,
+    const struct aclpci_fence_io *closure,
+    const struct aclpci_fence_io *fence,
+    const struct aclpci_fence_io *command);
 #endif

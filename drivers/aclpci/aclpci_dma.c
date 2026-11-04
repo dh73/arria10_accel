@@ -590,11 +590,7 @@ int aclpci_dma_startup_arm(struct aclpci_dev *a, struct aclpci_file *owner,
         !a->io_blocked || !d->contract_valid || d->fault || d->active ||
         d->publication_generation || a->control_debt)
         result = -EBUSY;
-    else {
-        result = aclpci_startup_init(&a->control_startup, context, id);
-        if (!result) result = aclpci_upstream_closure_init(&a->control_startup.closure, context, 1);
-        if (result) a->control_startup.result = result;
-    }
+    else result = aclpci_startup_closed_init(&a->control_startup, context, id);
     mutex_unlock(&d->lock);
     return result;
 }
@@ -618,11 +614,7 @@ int aclpci_dma_startup_service(struct aclpci_dev *a, struct aclpci_file *owner)
         a->control_debt = true; /* Before even potentially issued MMIO. */
         /* Publication remains blocked and generation zero under this lock.
          * Acknowledge upstream closure before the initial fence can settle. */
-        if (s->phase == 1 && s->closure.result != 1) {
-            result = aclpci_upstream_closure_step(&s->closure, &u);
-            if (result < 0) s->result = result;
-            else result = 0; /* Closure success is not START acceptance. */
-        } else result = aclpci_startup_step(s, &p, &f, &c);
+        result = aclpci_startup_closed_step(s, &p, &u, &f, &c);
     }
     mutex_unlock(&d->lock);
     return result;

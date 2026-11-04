@@ -7,6 +7,7 @@
 #include "../aclpci_supervisor_command.c"
 #include "../aclpci_context_provision.c"
 #include "../aclpci_startup.c"
+#include "../aclpci_startup_closed.c"
 #include "../aclpci_upstream_closure.c"
 #include "../aclpci_identity.c"
 #include "../aclpci_dma.c"
