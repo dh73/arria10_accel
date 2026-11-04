@@ -45,6 +45,8 @@
 #include "aclpci.h"
 #endif
 
+#include "platform_control_abi.h"
+
 struct dma_completion {
     struct aclpci_file *owner;
     struct task_struct *task;
@@ -348,6 +350,55 @@ int aclpci_dma_fence_step(struct aclpci_dev *aclpci, const struct aclpci_fence_i
     }
     mutex_unlock(&d->lock);
     return result;
+}
+
+/* Caller holds device sem throughout the lifecycle service operation. The
+ * readback orders prior writes to this function; it is not a DMA drain proof.
+ * Image identity, upstream closure and reset containment remain prerequisites. */
+static int fence_mmio_check(struct aclpci_dev *aclpci, unsigned int offset)
+{
+    if (!aclpci->online || aclpci->removed || aclpci->pr_in_progress)
+        return -ENODEV;
+    if (!aclpci->io_blocked || !aclpci->dma_data.contract_valid)
+        return -EACCES;
+    if ((offset & 3) || offset > ACLPCI_PLATFORM_FENCE_BYTES - sizeof(u32))
+        return -EINVAL;
+    if (!aclpci->bar[ACLPCI_PLATFORM_CONTROL_BAR] ||
+        aclpci->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] <
+        ACLPCI_PLATFORM_FENCE_BASE + ACLPCI_PLATFORM_FENCE_BYTES)
+        return -ERANGE;
+    return 0;
+}
+static int fence_mmio_read(void *context, unsigned int offset, u32 *value)
+{
+    struct aclpci_dev *aclpci = context;
+    int error = fence_mmio_check(aclpci, offset);
+    if (error) return error;
+    *value = ioread32(aclpci->bar[ACLPCI_PLATFORM_CONTROL_BAR] +
+                     ACLPCI_PLATFORM_FENCE_BASE + offset);
+    return 0;
+}
+static int fence_mmio_write(void *context, unsigned int offset, u32 value)
+{
+    struct aclpci_dev *aclpci = context;
+    int error = fence_mmio_check(aclpci, offset);
+    if (error) return error;
+    iowrite32(value, aclpci->bar[ACLPCI_PLATFORM_CONTROL_BAR] +
+              ACLPCI_PLATFORM_FENCE_BASE + offset);
+    return 0;
+}
+static int fence_mmio_flush(void *context)
+{
+    u32 value;
+    int error = fence_mmio_read(context, 0, &value);
+    return error ? error : value == 1 ? 0 : -EIO;
+}
+int aclpci_dma_fence_service(struct aclpci_dev *aclpci)
+{
+    const struct aclpci_fence_io io = {
+        aclpci, fence_mmio_read, fence_mmio_write, fence_mmio_flush
+    };
+    return aclpci_dma_fence_step(aclpci, &io);
 }
 
 int aclpci_dma_stop(struct aclpci_dev *aclpci)

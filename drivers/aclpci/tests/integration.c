@@ -966,8 +966,56 @@ static void test_file_after_unbind_and_protected_io(void)
     puts("PASS fileio: bounds/protected writes/default offline gate, copy faults, segment restoration, signal IRQ exclusion, open file after unbind");
 }
 
+static void test_kernel_fence_mmio(void)
+{
+    unsigned mode, n;
+    const u32 context[6] = {1,2,3,4,5,6};
+    for (mode=0;mode<7;mode++) {
+        unsigned reads, writes;
+        int result;
+        u32 *f = bar4 + ACLPCI_PLATFORM_FENCE_BASE/4;
+        init_engine();
+        device.io_blocked = true;
+        /* RAM-backed BAR fixture; no actual MMIO ordering claim. */
+        device.bar[2] = bar4;
+        device.bar_length[2] = ACLPCI_PLATFORM_FENCE_BASE + ACLPCI_PLATFORM_FENCE_BYTES;
+        f[0]=1;
+        memcpy(f+1,context,sizeof(context));f[7]=1;f[8]=0;
+        assert(!aclpci_dma_fence_arm(&device,context,1));
+        if(mode==1)device.bar_length[2]--;
+        if(mode==2)device.bar[2]=NULL;
+        if(mode==3)device.removed=true;
+        if(mode==4)device.online=false;
+        if(mode==5)device.pr_in_progress=true;
+        if(mode==6)f[0]=~0u;
+        reads=test.mmio_reads;writes=test.mmio_writes;
+        result=aclpci_dma_fence_service(&device);
+        if(mode) {
+            assert(result<0 && test.mmio_writes==writes);
+            assert(test.mmio_reads==reads+(mode==6));
+            device.bar[2]=bar4;device.bar_length[2]=sizeof(bar4);
+            device.removed=false;device.online=true;device.pr_in_progress=false;f[0]=1;
+            reads=test.mmio_reads;
+            assert(aclpci_dma_fence_service(&device)==result);
+            assert(test.mmio_reads==reads && test.mmio_writes==writes);
+        } else {
+            assert(!result);
+            for(n=1;n<20;n++)assert(!aclpci_dma_fence_service(&device));
+            assert(f[9]==0xa10f0001);
+            assert(test.mmio_writes==writes+9 && test.mmio_reads==reads+11);
+            f[0]=3;
+            assert(aclpci_dma_fence_service(&device)==1);
+            assert(test.mmio_reads==reads+12);
+        }
+        assert(!aclpci_dma_finish(&device));
+        assert(!test.live_allocs);
+    }
+    puts("PASS kernel fence MMIO: exact BAR bounds, readback sequence, 21 steps, removed/offline/PR rejection and sticky failures");
+}
+
 int main(void)
 {
+    test_kernel_fence_mmio();
     test_mapping_faults();
     test_offsets_and_owner();
     test_engine_init_and_sync_errors();
@@ -979,6 +1027,6 @@ int main(void)
     test_engine_bad_status_and_bounds();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
-    puts("PASS all eleven executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all twelve executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

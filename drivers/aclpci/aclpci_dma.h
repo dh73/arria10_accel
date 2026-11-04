@@ -91,4 +91,6 @@ struct aclpci_dma {
  * ordered same-function MMIO. No function below enables admission. */
 int aclpci_dma_fence_arm(struct aclpci_dev *, const u32 context[6], u64 round);
 int aclpci_dma_fence_step(struct aclpci_dev *, const struct aclpci_fence_io *);
+/* One event-driven step through the mapped BAR2; no polling or admission. */
+int aclpci_dma_fence_service(struct aclpci_dev *);
 #endif
