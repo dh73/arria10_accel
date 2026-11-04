@@ -1,5 +1,6 @@
 #pragma once
 #include "driver_dma_copy.hpp"
+#include "driver_byte_write.hpp"
 #include "aclpci_dma_events.hpp"
 #include <memory>
 namespace asus::a10::mmd {
@@ -13,12 +14,28 @@ class DriverDmaSession {
   enum class Result { Idle, Retained, Delivered, Interrupted, Attention };
   DriverDmaSession(int fd,DmaReceiptRead reader=nullptr,DmaReceiptRead writer=nullptr)
     : fd_(fd),reader_(reader),writer_(writer),events_(fd) {}
-  bool pending() const noexcept {return bool(operation_)||bool(copy_);}
+  bool pending() const noexcept {return bool(operation_)||bool(copy_)||bool(byte_);}
   bool attention() const noexcept {return attention_;}
+  // Caller has qualified the readback ABI and holds this mailbox/context for
+  // the session lifetime. Configure once before submissions; never reset the
+  // sequence to recover unknown work. No discovery or driver admission here.
+  bool configure_byte_writes(mailbox::Port& port,std::uint64_t base,
+                             std::uint64_t aperture,std::uint32_t first_sequence) noexcept {
+    if(pending()||attention_||byte_port_||!first_sequence)return false;
+    byte_port_=&port;byte_base_=base;byte_aperture_=aperture;byte_sequence_=first_sequence;
+    return true;
+  }
   Submission submit(const Request& request,Completion completion) noexcept {
     if(pending()||attention_||!events_.valid())return Submission::NotAccepted;
     try {
-      if(request.kind==Kind::Copy)
+      if(request.kind==Kind::Write && byte_port_){
+        if(!completion)return Submission::NotAccepted;
+        byte_=std::make_unique<DriverByteWrite>(fd_,*byte_port_,byte_base_,byte_aperture_,
+          request,byte_sequence_,reader_,writer_,memory::WriteCompletion::SelectedByteReadback);
+        if(byte_->state()==DriverByteWrite::State::Rejected){byte_.reset();return Submission::NotAccepted;}
+        byte_completion_=std::move(completion);byte_ticket_=request.ticket;
+        return Submission::Accepted; // Session owns the queued transfer now.
+      }else if(request.kind==Kind::Copy)
         copy_=std::make_unique<DriverDmaCopy>(fd_,request,std::move(completion),reader_,writer_);
       else
         operation_=std::make_unique<DriverDmaOperation>(fd_,request,std::move(completion),reader_,writer_);
@@ -31,9 +48,13 @@ class DriverDmaSession {
     }
     return outcome;
   }
+  // Blocks on native DMA events. For configured masked writes, performs one
+  // mailbox service transaction instead; caller supplies the native service
+  // scheduling. No background polling thread is created by this class.
   Result wait_one() noexcept {
     if(attention_)return Result::Attention;
     if(!pending())return Result::Idle;
+    if(byte_)return service_byte();
     const auto event=events_.wait();
     if(event==AclPciDmaEvents::Event::Interrupted)return Result::Interrupted;
     if(event==AclPciDmaEvents::Event::Error){attention_=true;return Result::Attention;}
@@ -52,13 +73,44 @@ class DriverDmaSession {
   // Explicit intervention boundary after the caller resolves an event/receipt
   // failure. Never invoke repeatedly as a status check or replay submission.
   bool resume_events() noexcept {
-    if(!attention_ || !pending() || !events_.arm())return false;
+    if(!attention_ || !pending() || byte_ || !events_.arm())return false;
     attention_=false;return true;
   }
   bool interrupt() noexcept {return events_.interrupt();}
  private:
+  Result service_byte() noexcept {
+    using S=DriverByteWrite::State;
+    if(byte_->state()==S::DmaPending){
+      const auto event=events_.wait();
+      if(event==AclPciDmaEvents::Event::Interrupted)return Result::Interrupted;
+      if(event==AclPciDmaEvents::Event::Error){attention_=true;return Result::Attention;}
+    }
+    const auto state=byte_->advance();
+    if(state==S::Attention){attention_=true;return Result::Attention;}
+    if(state==S::DmaPending){
+      // Level-triggered native readiness also covers completion before arm.
+      if(!events_.arm()){attention_=true;return Result::Attention;}
+      return Result::Retained;
+    }
+    if(!events_.disarm()){attention_=true;return Result::Attention;}
+    if(state==S::Progress || state==S::MailboxPending)return Result::Retained;
+    if(state!=S::Accepted && state!=S::Failed){attention_=true;return Result::Attention;}
+    const int result=state==S::Accepted?0:(byte_->dma_result()?byte_->dma_result():-EIO);
+    if(state==S::Accepted){
+      const auto next=std::uint64_t(byte_sequence_)+byte_->sequence_count();
+      byte_sequence_=next>0xffffffffULL?0:std::uint32_t(next);
+    }else attention_=true; // Partial sequence consumption forbids another request.
+    // Each masked command has readback evidence; bulk uses exact driver drain.
+    // These are per-operation completion facts, not global shutdown fences.
+    try{byte_completion_(byte_ticket_,result,dma::DrainEvidence::PerOperation);}
+    catch(...){attention_=true;return Result::Attention;}
+    byte_.reset();byte_completion_={};return Result::Delivered;
+  }
   int fd_;DmaReceiptRead reader_,writer_;AclPciDmaEvents events_;
   std::unique_ptr<DriverDmaOperation> operation_;std::unique_ptr<DriverDmaCopy> copy_;
   bool attention_{false};
+  mailbox::Port* byte_port_{nullptr};std::uint64_t byte_base_{0},byte_aperture_{0};
+  std::uint32_t byte_sequence_{0};dma::Ticket byte_ticket_{};Completion byte_completion_;
+  std::unique_ptr<DriverByteWrite> byte_;
 };
 }

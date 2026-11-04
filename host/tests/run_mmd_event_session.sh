@@ -9,5 +9,5 @@ done
 printf '#include "aclpci_dma_test_kernel.h"\n' > "$out/linux/sched/mm.h"
 printf '#include "aclpci_dma_test_kernel.h"\n' > "$out/asm/byteorder.h"
 cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g -I "$root/drivers/aclpci/tests" -I "$out" -DACLPCI_DMA_TEST -DACLPCI_FILEIO_TEST -c "$root/drivers/aclpci/tests/dma_receipt_client_fixture.c" -o "$out/fixture.o"
-c++ -std=c++17 -pthread -Wall -Wextra -Wpedantic -Werror -I "$root/host/include" -I "$root/host/mmd" -I "$root/third_party/fpga-runtime-for-opencl/include" -I "$root/drivers/aclpci" "$root/host/mmd/adapter.cpp" "$root/host/src/dma_operation_lifecycle.cpp" "$root/host/src/aclpci_dma_events.cpp" "$root/host/src/aclpci_dma_receipt.cpp" "$root/host/src/aclpci_dma_client.cpp" "$root/host/tests/mmd_event_session_test.cpp" "$out/fixture.o" -o "$out/test"
+c++ -std=c++17 -pthread -Wall -Wextra -Wpedantic -Werror -I "$root/host/include" -I "$root/host/mmd" -I "$root/third_party/fpga-runtime-for-opencl/include" -I "$root/drivers/aclpci" "$root/host/mmd/adapter.cpp" "$root/host/src/dma_operation_lifecycle.cpp" "$root/host/src/aclpci_dma_events.cpp" "$root/host/src/ddr_byte_write.cpp" "$root/host/src/ddr_write_plan.cpp" "$root/host/src/aclpci_dma_receipt.cpp" "$root/host/src/aclpci_dma_client.cpp" "$root/host/tests/mmd_event_session_test.cpp" "$out/fixture.o" -o "$out/test"
 "$out/test"

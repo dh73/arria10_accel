@@ -20,7 +20,32 @@ static ssize_t rd(int fd,void* p,std::size_t n){assert(fd==completion_fd);
   read_buffer=static_cast<acl_cmd*>(p)->user_addr;read_bytes=static_cast<acl_cmd*>(p)->size;
  }
  return receipt_fixture_read(p,n);}
-static ssize_t wr(int fd,void* p,std::size_t n){assert(fd==completion_fd);return receipt_fixture_write(p,n);}
+static unsigned write_submissions;static void* write_buffer;static std::size_t write_bytes,write_address;
+static ssize_t wr(int fd,void* p,std::size_t n){assert(fd==completion_fd);
+ auto* c=static_cast<acl_cmd*>(p);
+ if(c->command==ACLPCI_CMD_DMA_SUBMIT){++write_submissions;write_buffer=c->user_addr;write_bytes=c->size;write_address=reinterpret_cast<std::uintptr_t>(c->device_addr);}
+ return receipt_fixture_write(p,n);}
+struct BytePort:mailbox::Port {
+ std::uint32_t fields[5]{},done=0;bool pending=false;
+ unsigned commands=0,calls=0;bool fail_command=false;unsigned char memory[16];
+ BytePort(){std::memset(memory,0x55,sizeof memory);}
+ mailbox::Reply read32(std::uint64_t a)noexcept override{
+  ++calls;assert(a==1024||a==1028||a==1056);
+  return {mailbox::Outcome::Completed,a==1024?0x42595702u:a==1028?(pending?1u:done?4u:0u):done};
+ }
+ mailbox::Reply write32(std::uint64_t a,std::uint32_t v)noexcept override{
+  ++calls;if(a==1052){assert(v==1&&!pending);pending=true;++commands;if(fail_command)return {mailbox::Outcome::Unknown};}
+  else{assert(a>=1032&&a<=1048&&!(a&3));fields[(a-1032)/4]=v;}
+  return {mailbox::Outcome::Completed};
+ }
+ mailbox::Reply fence()noexcept override{return {mailbox::Outcome::Completed};}
+ void complete(){
+  assert(pending&&fields[4]==done+1&&fields[1]==0);
+  auto offset=fields[0]-0x200000;assert(offset+4<=sizeof memory);
+  for(unsigned b=0;b<4;++b)if(fields[3]&(1u<<b))memory[offset+b]=fields[2]>>(8*b);
+  done=fields[4];pending=false;
+ }
+};
 // Only hardware and kernel primitives are simulated by the retained C fixture.
 // This factory is test-only; it supplies no production discovery or qualification.
 struct DriverFixture : Transport {
@@ -98,6 +123,50 @@ int main(){
  assert(status.calls==5&&!status.result&&bytes[0]==2&&bytes[1]==3&&bytes[2]==4&&bytes[3]==0x55);
  assert(!aocl_mmd_close(status.handle));assert(install_backend(nullptr));receipt_fixture_finish();
  d.reset();factory.reset();
+ // Actual MMD staging/callback lifecycle across masked head, DMA, masked tail.
+ receipt_fixture_begin();factory=std::make_shared<Factory>();d=factory->device;
+ BytePort byte_port;assert(d->session.configure_byte_writes(byte_port,1024,0x80000000,1));
+ assert(install_backend(factory));status={};status.handle=aocl_mmd_open("driver-fixture");assert(status.handle>=0);
+ assert(!aocl_mmd_set_status_handler(status.handle,completed,&status));
+ unsigned char payload[8]={1,2,3,4,5,6,7,8};
+ for(unsigned round=0;round<2;++round){
+  const auto before=write_submissions;
+  assert(!aocl_mmd_write(status.handle,&status,8,payload,7,0x200001));
+  assert(aocl_mmd_close(status.handle)<0);
+  while(write_submissions==before){
+   assert(d->session.wait_one()==DriverDmaSession::Result::Retained);
+   if(byte_port.pending)byte_port.complete();
+   assert(flush_ready(status.handle)&&status.calls==int(round));
+  }
+  assert(write_address==0x200004&&write_bytes==4);
+  std::memcpy(byte_port.memory+4,write_buffer,4);
+  receipt_fixture_complete();d->event();
+  while(d->session.pending()){
+   auto r=d->session.wait_one();
+   assert(r==DriverDmaSession::Result::Retained||r==DriverDmaSession::Result::Delivered);
+   if(byte_port.pending)byte_port.complete();
+  }
+  assert(flush_ready(status.handle)&&status.calls==int(round+1)&&!status.result);
+  assert(byte_port.commands==2*(round+1)&&!std::memcmp(byte_port.memory+1,payload,8));
+  assert(byte_port.memory[0]==0x55&&byte_port.memory[9]==0x55);
+ }
+ assert(!aocl_mmd_close(status.handle));assert(install_backend(nullptr));receipt_fixture_finish();d.reset();factory.reset();
+
+ // Uncertain edge submission retains staging and never reaches bulk or callback.
+ {
+  BytePort unknown;unknown.fail_command=true;int callbacks=0;
+  DriverDmaSession session(completion_fd,rd,wr);
+  assert(session.configure_byte_writes(unknown,1024,0x80000000,1));
+  Request request{Kind::Write,7,8,0,0x200001,payload,{9,1}};
+  auto submissions=write_submissions;
+  assert(session.submit(request,[&](dma::Ticket,int,dma::DrainEvidence){++callbacks;})==Submission::Accepted);
+  while(!session.attention())session.wait_one();
+  auto calls=unknown.calls;
+  assert(session.pending()&&!callbacks&&unknown.commands==1&&write_submissions==submissions);
+  assert(session.wait_one()==DriverDmaSession::Result::Attention&&unknown.calls==calls);
+  assert(!session.resume_events());
+  // Test fixture only: no real hardware references exist at test destruction.
+ }
  // Receipt failure after an actual driver retirement: keep ownership, stop
  // automatic event rearming, then resume once after fixing the reader.
  receipt_fixture_begin();
@@ -115,5 +184,5 @@ int main(){
   assert(::read(completion_fd,&one,sizeof one)==sizeof one);
  }
  receipt_fixture_finish();::close(completion_fd);
- std::cout<<"MMD_EVENT_SESSION_PASS staged_write drained_read cancelled_read early_irq close_retention ordered_copy\n";
+ std::cout<<"MMD_EVENT_SESSION_PASS staged_write drained_read cancelled_read early_irq close_retention ordered_copy byte_write_rounds=2 masked_uncertainty\n";
 }
