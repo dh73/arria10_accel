@@ -1,0 +1,24 @@
+# ES3 E3.1 GoldenTop pin mapping; all selected controls use 1.8 V.
+# Lane indicators are cumulative; the x2 indicator uses green user LED3.
+set_location_assignment PIN_L28 -to {board_pins_L0_led}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_L0_led}
+set_location_assignment PIN_K26 -to {board_pins_alive_led}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_alive_led}
+set_location_assignment PIN_K25 -to {board_pins_comp_led}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_comp_led}
+set_location_assignment PIN_BC28 -to {board_pins_gen2_led}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_gen2_led}
+set_location_assignment PIN_BC29 -to {board_pins_gen3_led}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_gen3_led}
+set_location_assignment PIN_BA27 -to {board_pins_lane_active_led[0]}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_lane_active_led[0]}
+set_location_assignment PIN_L25 -to {board_pins_lane_active_led[1]}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_lane_active_led[1]}
+set_location_assignment PIN_BB27 -to {board_pins_lane_active_led[2]}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_lane_active_led[2]}
+set_location_assignment PIN_BD28 -to {board_pins_lane_active_led[3]}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_lane_active_led[3]}
+set_location_assignment PIN_U12 -to {board_pins_req_compliance_pb}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_req_compliance_pb}
+set_location_assignment PIN_A24 -to {board_pins_set_compliance_mode}
+set_instance_assignment -name IO_STANDARD {1.8 V} -to {board_pins_set_compliance_mode}
