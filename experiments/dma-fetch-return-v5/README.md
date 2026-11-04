@@ -50,6 +50,20 @@ contain the fault. Recoverable error, timeout and link-loss handling still need
 an explicit upstream cancellation/drain contract and retained host-visible cause.
 No universal error-path liveness is established.
 
+## Known ordering defect
+
+The current consumer can interleave descriptors from two committed tables for
+one destination: tables `[0,1]` and `[2,3]` can emit `[0,2,1,3]`. Bank selection
+rotates after each descriptor instead of retaining the oldest table until its
+last accepted copier beat. The focused original-source witness observes
+`expected=1 actual=2`; the component regressions below did not close this case.
+
+A separate candidate queues tables per destination at issue acceptance and
+advances only after the accepted final copier beat. Its focused consumer test
+passes; controller/native-engine/FIFO composition remains unqualified. The
+candidate is not adopted here. Production use requires ordered table delivery
+in addition to the ownership and recovery conditions above.
+
 ## Build
 
 The builder checks exact source identities and writes generated derivatives to
