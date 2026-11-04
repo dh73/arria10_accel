@@ -69,3 +69,18 @@ and reset with outstanding wide responses remain additional stress cases.
 
 Select top `width_mixed_tb`, parameter `width_mixed_tb.W` and `mixed_tb.sv` in
 the reproduction command; require `WIDTH_MIXED_PASS width=...`.
+
+## Early ECC with outstanding reads
+
+`early_ecc_tb.sv` injects an error on the first read response after a 17-cycle
+backend delay, with at least two later responses still owned. At each width,
+15 accepted mixed commands dispatch exactly once and all five reads return.
+The bench checks every enabled write/read byte, retains the first failing
+address, and holds a new request through drain to verify that the sticky fault
+blocks admission. The backlog must finish before `drained` is accepted.
+
+Select top `width_early_ecc_tb`, parameter `width_early_ecc_tb.W`, and
+`early_ecc_tb.sv` in the reproduction command. Require
+`WIDTH_EARLY_ECC_PASS width=... accepted=15 dispatched=15 returned=5`.
+All four widths pass. This is an adapter fixture; physical ECC injection,
+whole-system fault containment and recovery remain separate qualifications.
