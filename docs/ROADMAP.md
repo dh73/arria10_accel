@@ -7,6 +7,22 @@
 5. Pin a compatible compiler, board-support and runtime configuration; build hardware SYCL images and validate physical DDR/ECC, bidirectional DMA and kernel results against independent oracles.
 6. Qualify every populated external interface with appropriate fixtures, then test contention, reconfiguration, cold boot and recovery.
 
+## Current full-hierarchy boundary
+
+The unmodified reference now completes both DMA directions and two 128-byte
+host-memory comparisons using its generated library flow. The combined
+candidate trains the link and configures BARs, then rejects a legal BAR write:
+its completion validator treats unrelated traffic on the shared receive FIFO
+as a malformed completion. An unchanged-engine witness reproduces the fault
+before any DMA request. No candidate full-hierarchy pass is claimed.
+
+Next: separate receive dispatch from completion validation, retaining error,
+unknown-tag and ownership checks; rerun the combined hierarchy; then exercise
+multi-burst descriptors with poisoned destinations and every status slot checked.
+Candidate descriptor tables use `0x80000000` and `0x80002000`, outside the 2-GiB
+payload aperture. The legacy reference fixture uses different table addresses;
+candidate tests must select the candidate layout explicitly.
+
 ## DMA integration sequence
 
 * Carry the admitted fetch token, epoch and descriptor ordinal through actual
