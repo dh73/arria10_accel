@@ -1179,8 +1179,66 @@ static void test_kernel_supervisor_mmio(void)
     puts("PASS kernel supervisor MMIO: all 12 boundaries, bounded BAR, removal/PR/admission/contract/fault gates, sticky failure");
 }
 
+static void test_kernel_startup_mmio(void)
+{
+    const u32 context[6]={1,2,3,4,5,6};
+    unsigned mode,boundary,n;
+    for(mode=0;mode<9;++mode)for(boundary=0;boundary<52;++boundary) {
+        u32 *p=bar4+ACLPCI_PLATFORM_CONTEXT_BASE/4;
+        u32 *f=bar4+ACLPCI_PLATFORM_FENCE_BASE/4;
+        u32 *c=bar4+ACLPCI_PLATFORM_COMMAND_BASE/4;
+        unsigned reads,writes;int result=0;
+        init_engine();device.io_blocked=true;
+        device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
+        memset(bar4,0,sizeof bar4);p[0]=0xa10e0001;
+        f[0]=1;memcpy(f+1,context,sizeof context);f[7]=1;
+        down(&device.sem);
+        assert(!aclpci_control_claim(&file));
+        assert(!aclpci_dma_startup_arm(&device,&file,context,1));
+        assert(aclpci_dma_startup_service(&device,NULL)==-EPERM);
+        for(n=0;n<52;++n) {
+            struct aclpci_startup *s=&device.control_startup;
+            if(s->phase==0 && s->provision.step>=10)p[1]=1;
+            if(s->phase==1 && s->fence.step==6)f[0]=3;
+            if(s->phase==2 && s->command.step>=8){c[4]=6;c[6]=1;}
+            if(n==boundary && mode) {
+                if(mode==1)device.removed=true;
+                if(mode==2)file.closed=true;
+                if(mode==3)device.dma_data.contract_valid=false;
+                if(mode==4)device.dma_data.fault=-EIO;
+                if(mode==5)device.io_blocked=false;
+                if(mode==6)device.bar_length[2]=0;
+                if(mode==7)device.bar[2]=NULL;
+                if(mode==8)device.pr_in_progress=true;
+            }
+            reads=test.mmio_reads;writes=test.mmio_writes;
+            result=aclpci_dma_startup_service(&device,&file);
+            assert(test.mmio_reads+test.mmio_writes<=reads+writes+1);
+            if(mode && n>=boundary) {
+                assert(result<0 && reads==test.mmio_reads && writes==test.mmio_writes);
+                /* Restoring observations cannot resurrect this transaction. */
+                device.removed=false;file.closed=false;device.dma_data.contract_valid=true;
+                device.dma_data.fault=0;device.io_blocked=true;device.bar_length[2]=sizeof bar4;
+                device.bar[2]=bar4;device.pr_in_progress=false;
+            }
+        }
+        if(!mode)assert(result==1 && p[1]==1 && f[0]==3 && c[3]==0xa10c0001);
+        reads=test.mmio_reads;writes=test.mmio_writes;
+        assert(aclpci_dma_startup_service(&device,&file)==result);
+        assert(test.mmio_reads==reads && test.mmio_writes==writes && device.io_blocked);
+        if(device.control_debt)assert(aclpci_dma_startup_arm(&device,&file,context,2)==-EBUSY);
+        /* Fixture disposal only; production retains issued control debt. */
+        device.control_debt=false;
+        assert(!aclpci_control_release_unused(&file));
+        up(&device.sem);
+        assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    }
+    puts("PASS kernel startup MMIO: 52 boundaries, eight revocations, ordered windows, no admission or replay");
+}
+
 int main(void)
 {
+    test_kernel_startup_mmio();
     test_fence_custody_loss();
     test_kernel_supervisor_mmio();
     test_kernel_fence_mmio();
@@ -1197,6 +1255,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all sixteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all seventeen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

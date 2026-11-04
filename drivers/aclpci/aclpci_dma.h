@@ -97,4 +97,8 @@ int aclpci_dma_fence_service(struct aclpci_dev *);
 /* Caller retains exclusive command ownership and immutable image/reset context
  * across steps under device sem. Does not open admission or certify drain. */
 int aclpci_dma_supervisor_service(struct aclpci_dev *, struct aclpci_supervisor_command *);
+/* First START only. Requires retained control_owner and a separately qualified
+ * image/reset contract. Neither operation enables host submission. */
+int aclpci_dma_startup_arm(struct aclpci_dev *, struct aclpci_file *, const u32 context[6], u64 id);
+int aclpci_dma_startup_service(struct aclpci_dev *, struct aclpci_file *);
 #endif

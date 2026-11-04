@@ -465,6 +465,79 @@ int aclpci_dma_supervisor_service(struct aclpci_dev *aclpci,
     return result;
 }
 
+static int context_mmio_check(struct aclpci_dev *a, unsigned int offset)
+{
+    if (!a->online || a->removed || a->pr_in_progress) return -ENODEV;
+    if (!a->io_blocked || !a->dma_data.contract_valid) return -EACCES;
+    if ((offset & 3) || offset > ACLPCI_PLATFORM_CONTEXT_BYTES - sizeof(u32)) return -EINVAL;
+    if (!a->bar[ACLPCI_PLATFORM_CONTROL_BAR] ||
+        a->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] <
+        ACLPCI_PLATFORM_CONTEXT_BASE + ACLPCI_PLATFORM_CONTEXT_BYTES) return -ERANGE;
+    return 0;
+}
+static int context_mmio_read(void *context, unsigned int offset, u32 *value)
+{
+    struct aclpci_dev *a = context;
+    int error = context_mmio_check(a, offset);
+    if (error) return error;
+    *value = ioread32(a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + ACLPCI_PLATFORM_CONTEXT_BASE + offset);
+    return 0;
+}
+static int context_mmio_write(void *context, unsigned int offset, u32 value)
+{
+    struct aclpci_dev *a = context;
+    int error = context_mmio_check(a, offset);
+    if (error) return error;
+    iowrite32(value, a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + ACLPCI_PLATFORM_CONTEXT_BASE + offset);
+    return 0;
+}
+static int context_mmio_flush(void *context)
+{
+    u32 value;
+    int error = context_mmio_read(context, 0, &value);
+    return error ? error : value == 0xa10e0001 ? 0 : -EIO;
+}
+/* sem is held across the caller's entire operation. d->lock also excludes DMA
+ * publication and reset invalidation. No userspace booleans can qualify this. */
+int aclpci_dma_startup_arm(struct aclpci_dev *a, struct aclpci_file *owner,
+                         const u32 context[6], u64 id)
+{
+    struct aclpci_dma *d = &a->dma_data;
+    int result;
+    if (!owner || a->control_owner != owner) return -EPERM;
+    if (!d->initialized) return -ENODEV;
+    mutex_lock(&d->lock);
+    if (owner->closed || !a->online || a->removed || a->pr_in_progress ||
+        !a->io_blocked || !d->contract_valid || d->fault || d->active ||
+        d->publication_generation || a->control_debt)
+        result = -EBUSY;
+    else result = aclpci_startup_init(&a->control_startup, context, id);
+    mutex_unlock(&d->lock);
+    return result;
+}
+int aclpci_dma_startup_service(struct aclpci_dev *a, struct aclpci_file *owner)
+{
+    struct aclpci_dma *d = &a->dma_data;
+    struct aclpci_startup *s = &a->control_startup;
+    const struct aclpci_fence_io p = {a, context_mmio_read, context_mmio_write, context_mmio_flush};
+    const struct aclpci_fence_io f = {a, fence_mmio_read, fence_mmio_write, fence_mmio_flush};
+    const struct aclpci_fence_io c = {a, command_mmio_read, command_mmio_write, command_mmio_flush};
+    int result;
+    if (!owner || a->control_owner != owner) return -EPERM;
+    if (!d->initialized) return aclpci_startup_revoke(s);
+    mutex_lock(&d->lock);
+    if (owner->closed || !a->online || a->removed || a->pr_in_progress ||
+        !a->io_blocked || !d->contract_valid || d->fault || d->active || d->publication_generation)
+        result = aclpci_startup_revoke(s);
+    else if (s->result) result = s->result;
+    else {
+        a->control_debt = true; /* Before even potentially issued MMIO. */
+        result = aclpci_startup_step(s, &p, &f, &c);
+    }
+    mutex_unlock(&d->lock);
+    return result;
+}
+
 /* Reset/error notification is not a drain certificate. No MMIO or harvesting:
  * late status bytes cannot discharge a ticket from the invalidated lifetime. */
 void aclpci_dma_revoke(struct aclpci_dev *aclpci)
