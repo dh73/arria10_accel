@@ -147,6 +147,19 @@ static void host_tests() {
   need(check(r).code == good_code() && !check(r).observed.health.valid, "invalid health");
   r.words[39] = 1;
   need(check(r).code == im::Code::Malformed, "unqualified health payload");
+  // V2 preserves all 41 address bits; the V1 reserved bits remain strict.
+  for(unsigned bit=0;bit<41;++bit) {
+    auto wide=baseline;wide.words[1]=0x20000;wide.words[2]=2;
+    wide.words[40]|=1u<<24;put64(wide,41,std::uint64_t(1)<<bit);
+    const auto decoded=check(wide);
+    need(decoded.code==good_code() && decoded.observed.health.address==(std::uint64_t(1)<<bit), "wide address lost");
+    Transcript tr(flatten(wide));im::Cursor cur(91);
+    const auto captured=im::capture(tr,cur);
+    need(captured.code==im::Code::Consistent && check(captured.raw).code==good_code(), "v2 capture failed");
+  }
+  auto wide=baseline;wide.words[1]=0x20000;wide.words[2]=2;wide.words[40]|=1u<<24;
+  put64(wide,41,std::uint64_t(1)<<41);
+  need(check(wide).code==im::Code::Malformed,"out-of-range v2 address");
   for (unsigned failure = 0; failure != 72; ++failure) {
     Transcript transport(flatten(baseline)); transport.fail_at = int(failure);
     im::Cursor cursor(77);

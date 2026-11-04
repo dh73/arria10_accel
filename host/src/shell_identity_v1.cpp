@@ -68,10 +68,14 @@ Capture capture(Reader& reader, Cursor& cursor) noexcept {
   // The six-word discovery prefix is read before any layout-specific register.
   constexpr std::array<std::uint32_t, 6> prefix{
       0x31444941u, 0x00010000u, 1, block_bytes, capabilities, capabilities};
+  std::uint32_t version = 0;
   for (unsigned i = 0; i != prefix.size(); ++i) {
     std::uint32_t value = 0;
     if (!read(i * 4, value)) return result;
-    if (value != prefix[i]) { result.code = Code::Unsupported; return result; }
+    const bool supported = i == 1 ? (value == 0x10000u || value == 0x20000u)
+                         : i == 2 ? value == (version >> 16) : value == prefix[i];
+    if (!supported) { result.code = Code::Unsupported; return result; }
+    if (i == 1) version = value;
   }
   if (!read(24, result.raw.before)) return result;
   if (result.raw.before == 0) { result.code = Code::Invalid; return result; }
@@ -92,12 +96,13 @@ Report check(const RawSnapshot& raw, const kernel::SourceAbi& source,
   if (raw.before == 0 || raw.after == 0 || w[7] != 1)
     return fail(Code::Invalid);
   if (raw.before != raw.after || raw.before != w[6]) return fail(Code::Torn);
-  if (w[0] != 0x31444941u || w[1] != 0x00010000u || w[2] != 1 ||
+  if (w[0] != 0x31444941u || !((w[1] == 0x00010000u && w[2] == 1) ||
+                             (w[1] == 0x00020000u && w[2] == 2)) ||
       w[3] != block_bytes || w[4] != capabilities || w[5] != capabilities)
     return fail(Code::Unsupported);
   for (unsigned i = 43; i != 64; ++i)
     if (w[i] != 0) return fail(Code::Malformed);
-  if ((w[38] & ~0x7ffu) || (w[40] & 0xfe000000u) || (w[42] & ~7u))
+  if ((w[38] & ~0x7ffu) || (w[40] & 0xfe000000u) || (w[42] & ~(w[2] == 2 ? 0x1ffu : 7u)))
     return fail(Code::Malformed);
   if (!(w[40] & (1u << 24)) && u64(raw, 41) != 0)
     return fail(Code::Malformed);
