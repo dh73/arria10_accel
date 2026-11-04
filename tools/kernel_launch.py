@@ -6,9 +6,9 @@ from pathlib import Path
 from kernel_abi import extract, require
 
 
-def encode(source, kernel_name, arguments):
+def encode(source, kernel_name, arguments, *, packed=False):
     # Re-extract actual source rather than trusting a caller-modified manifest.
-    abi = extract(source)
+    abi = extract(source, packed=packed)
     kernels = [k for k in abi['kernels'] if k['name'] == kernel_name]
     require(len(kernels) == 1, 'unknown kernel')
     kernel = kernels[0]
@@ -17,13 +17,19 @@ def encode(source, kernel_name, arguments):
     require(isinstance(arguments, dict) and set(arguments) == set(names),
             'arguments must contain exactly the generated names')
     writes = []
-    for arg in kernel['arguments']:
-        value = arguments[arg['name']]
-        require(type(value) is int and 0 <= value < (1 << 64),
-                'argument must be an unsigned 64-bit integer: ' + arg['name'])
-        writes.append({'byte_offset': kernel['base'] + arg['byte_offset'],
-                       'data_le_hex': value.to_bytes(8, 'little').hex(),
-                       'byte_enable': 255})
+    if packed:
+        from packed_kernel_args import encode as encode_packed
+        writes = [{'byte_offset': w['address'],
+                   'data_le_hex': w['value'].to_bytes(8, 'little').hex(),
+                   'byte_enable': w['byteenable']} for w in encode_packed(kernel, arguments)]
+    else:
+        for arg in kernel['arguments']:
+            value = arguments[arg['name']]
+            require(type(value) is int and 0 <= value < (1 << 64),
+                    'argument must be an unsigned 64-bit integer: ' + arg['name'])
+            writes.append({'byte_offset': kernel['base'] + arg['byte_offset'],
+                           'data_le_hex': value.to_bytes(8, 'little').hex(),
+                           'byte_enable': 255})
     writes.append({'byte_offset': kernel['base'] + kernel['start_offset'],
                    'data_le_hex': '0100000000000000', 'byte_enable': 255})
     return {'schema': 2, 'kernel': kernel_name,
@@ -57,9 +63,10 @@ if __name__ == '__main__':
     parser.add_argument('kernel')
     parser.add_argument('arguments', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument("--packed", action="store_true", help="Trace packed 32/64-bit argument lanes from generated RTL")
     args = parser.parse_args()
     values = json.loads(args.arguments.read_text(), object_pairs_hook=unique_object)
-    plan = encode(args.source, args.kernel, values)
+    plan = encode(args.source, args.kernel, values, packed=args.packed)
     # Never overwrite an existing launch packet or an input file.
     with args.output.open('x') as output:
         output.write(json.dumps(plan, indent=2) + '\n')

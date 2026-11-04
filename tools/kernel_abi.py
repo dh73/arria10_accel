@@ -29,7 +29,7 @@ def one(pattern, text):
     return matches[0]
 
 
-def extract(source):
+def extract(source, *, packed=False):
     source = Path(source).resolve()
     hashes = {}
 
@@ -89,27 +89,31 @@ def extract(source):
                 'unsupported finished-bit packing')
         args = []
         offsets = set([start, status, finish_count])
-        for index, arg in enumerate(kernel.iter('ARGUMENT')):
-            arg_name = arg.get('name')
-            require(re.fullmatch(r'[A-Za-z0-9_]+', arg_name or ''), 'invalid argument name')
-            require(arg.get('size') == '8' and arg.get('is_streaming') == 'false',
-                    'unsupported argument size/streaming')
-            high, low = one(r'assign\s+arg_'+re.escape(arg_name)+r'_select_b\s*=\s*kernel_arguments\[(\d+):(\d+)\];', wrapper)
-            require(int(low) == index * 64 and int(high) == index * 64 + 63,
-                    'XML/RTL argument order mismatch')
-            # Trace the actual register write enable through comparator to address.
-            half_offsets = []
-            for half in (0, 1):
-                enable = one(r'// arguments_'+str(2*index+half)+r"_buffered\(REG.*?else if \((\w+) == 1'b1\)", agent)
-                compare = one(r'assign\s+'+re.escape(enable)+r'\s*=\s*(\w+) & avs_cra_write;', agent)
-                address_ref = one(r'assign\s+'+re.escape(compare)+r"\s*=\s*\$unsigned\(avs_cra_address == (\w+) \? 1'b1 : 1'b0\);", agent)
-                half_offsets.append(constant(address_ref) * 8)
-            require(half_offsets[0] == half_offsets[1], "argument halves use different registers")
-            offset = half_offsets[0]
-            require(offset not in offsets and offset + 8 <= size, 'overlapping/out-of-range argument')
-            offsets.add(offset)
-            args.append({'name':arg_name, 'byte_offset':offset, 'size':8,
-                         'kind':arg.get('opencl_type_category'), 'rtl_bit_offset':int(low)})
+        if packed:
+            from packed_kernel_args import extract_arguments
+            args = extract_arguments(kernel, wrapper, agent, constant, size, offsets, one, require)
+        else:
+            for index, arg in enumerate(kernel.iter('ARGUMENT')):
+                arg_name = arg.get('name')
+                require(re.fullmatch(r'[A-Za-z0-9_]+', arg_name or ''), 'invalid argument name')
+                require(arg.get('size') == '8' and arg.get('is_streaming') == 'false',
+                        'unsupported argument size/streaming')
+                high, low = one(r'assign\s+arg_'+re.escape(arg_name)+r'_select_b\s*=\s*kernel_arguments\[(\d+):(\d+)\];', wrapper)
+                require(int(low) == index * 64 and int(high) == index * 64 + 63,
+                        'XML/RTL argument order mismatch')
+                # Trace the actual register write enable through comparator to address.
+                half_offsets = []
+                for half in (0, 1):
+                    enable = one(r'// arguments_'+str(2*index+half)+r"_buffered\(REG.*?else if \((\w+) == 1'b1\)", agent)
+                    compare = one(r'assign\s+'+re.escape(enable)+r'\s*=\s*(\w+) & avs_cra_write;', agent)
+                    address_ref = one(r'assign\s+'+re.escape(compare)+r"\s*=\s*\$unsigned\(avs_cra_address == (\w+) \? 1'b1 : 1'b0\);", agent)
+                    half_offsets.append(constant(address_ref) * 8)
+                require(half_offsets[0] == half_offsets[1], "argument halves use different registers")
+                offset = half_offsets[0]
+                require(offset not in offsets and offset + 8 <= size, 'overlapping/out-of-range argument')
+                offsets.add(offset)
+                args.append({'name':arg_name, 'byte_offset':offset, 'size':8,
+                             'kind':arg.get('opencl_type_category'), 'rtl_bit_offset':int(low)})
         result.append({'name':name,'base':base,'size':size,'start_offset':start,
                        'status_offset':status,'finished_bit':1,
                        'finish_count_offset':finish_count,'finish_count_bits':2,
@@ -120,7 +124,7 @@ def extract(source):
     ordered = sorted(result, key=lambda k:k['base'])
     for previous, current in zip(ordered, ordered[1:]):
         require(previous['base'] + previous['size'] <= current['base'], 'overlapping kernel windows')
-    return {'schema':1,'scope':'generated source only; loaded image not verified',
+    return {'schema':2 if packed else 1,'scope':'generated source only; loaded image not verified',
             'cra_aperture_bytes':aperture,'kernels':result,'source_sha256':hashes}
 
 
