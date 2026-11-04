@@ -264,6 +264,9 @@ int aclpci_control_claim(struct aclpci_file *owner);
 /* Internal read-only discovery under sem and retained control ownership.
  * Does not require or set DMA contract_valid. No device admission implied. */
 enum aclpci_identity_code aclpci_control_identity_capture(struct aclpci_file *, struct aclpci_identity_raw *);
+enum aclpci_identity_code aclpci_control_identity_check(struct aclpci_file *,
+    const struct aclpci_identity_expected *, const struct aclpci_identity_resource *,
+    unsigned int, struct aclpci_identity_observation *);
 int aclpci_control_mark_issued(struct aclpci_file *owner);
 int aclpci_control_release_unused(struct aclpci_file *owner);
 void aclpci_file_get(struct aclpci_file *owner);

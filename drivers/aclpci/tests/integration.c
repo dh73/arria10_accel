@@ -1307,6 +1307,42 @@ static void test_identity_discovery_mmio(void)
     puts("PASS identity discovery: owned bounded read-only BAR2 capture without DMA admission");
 }
 
+static void test_identity_checked_mmio(void)
+{
+    unsigned mode;
+    for(mode=0;mode<6;++mode) {
+        struct aclpci_identity_expected e={0};
+        struct aclpci_identity_resource resources[2]={{2,32768},{0x80000000u,512}};
+        struct aclpci_identity_observation o,zero={0};
+        enum aclpci_identity_code want=ACLPCI_ID_CONSISTENT;
+        u32 *w=bar4+ACLPCI_PLATFORM_IDENTITY_BASE/4;
+        unsigned writes;
+        init_engine();device.io_blocked=true;device.dma_data.contract_valid=false;
+        device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;memset(bar4,0,sizeof bar4);
+        w[0]=ACLPCI_ID_MAGIC;w[1]=ACLPCI_ID_V2;w[2]=2;w[3]=256;
+        w[4]=w[5]=31;w[6]=7;w[7]=1;w[8]=1;w[16]=2;
+        w[24]=2;w[25]=0x80000000u;w[26]=256;w[30]=512;w[32]=3;w[36]=4;
+        e.source[0]=1;e.build[0]=2;e.context.session[0]=3;e.context.epoch=4;
+        e.management=(struct aclpci_identity_range){2,256,256};
+        e.cra=(struct aclpci_identity_range){0x80000000u,0,512};
+        e.aperture_bytes=512;e.source_reextracted=1;
+        if(mode==1){w[8]=9;want=ACLPCI_ID_SOURCE_MISMATCH;}
+        if(mode==2){w[16]=9;want=ACLPCI_ID_BUILD_MISMATCH;}
+        if(mode==3){w[36]=9;want=ACLPCI_ID_STALE_CONTEXT;}
+        if(mode==4){e.source_reextracted=0;want=ACLPCI_ID_TEST_SOURCE_ONLY;}
+        if(mode==5){resources[0].bytes=511;want=ACLPCI_ID_BAD_RANGE;}
+        down(&device.sem);assert(!aclpci_control_claim(&file));writes=test.mmio_writes;
+        memset(&o,0xa5,sizeof o);
+        assert(aclpci_control_identity_check(&file,&e,resources,2,&o)==want);
+        assert(writes==test.mmio_writes&&!device.control_debt&&!device.dma_data.contract_valid&&device.io_blocked);
+        if(mode!=0&&mode!=4)assert(!memcmp(&o,&zero,sizeof o));
+        else assert(o.context.epoch==4&&o.sequence==7);
+        assert(!aclpci_control_release_unused(&file));up(&device.sem);
+        assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    }
+    puts("PASS checked identity MMIO: source/build/context/range rejection, source-only classification, no admission");
+}
+
 static void test_close_publication(void)
 {
     unsigned queued;
@@ -1394,6 +1430,7 @@ int main(void)
     test_close_publication();
     test_identity_capture_failures();
     test_identity_discovery_mmio();
+    test_identity_checked_mmio();
     test_kernel_startup_mmio();
     test_fence_custody_loss();
     test_kernel_supervisor_mmio();
@@ -1411,6 +1448,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all twenty-one executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all twenty-two executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

@@ -190,6 +190,27 @@ enum aclpci_identity_code aclpci_control_identity_capture(struct aclpci_file *ow
   return aclpci_identity_capture(identity_mmio_read, owner, raw);
 }
 
+/* Caller holds sem across capture and comparison. Expectations/resources are
+ * trusted image-loader inputs, never supplied by this hardware response.
+ * This read-only check grants no contract, bus mastering or DMA permission. */
+enum aclpci_identity_code aclpci_control_identity_check(struct aclpci_file *owner,
+    const struct aclpci_identity_expected *expected,
+    const struct aclpci_identity_resource *resources, unsigned int count,
+    struct aclpci_identity_observation *observation)
+{
+  struct aclpci_identity_raw raw;
+  enum aclpci_identity_code code;
+  if (!observation) return ACLPCI_ID_INVALID;
+  memset(observation, 0, sizeof(*observation));
+  if (!expected || (count && !resources)) return ACLPCI_ID_INVALID;
+  code = aclpci_control_identity_capture(owner, &raw);
+  if (code != ACLPCI_ID_CONSISTENT) return code;
+  code = aclpci_identity_check(&raw, expected, resources, count, observation);
+  if (code != ACLPCI_ID_CONSISTENT && code != ACLPCI_ID_TEST_SOURCE_ONLY)
+    memset(observation, 0, sizeof(*observation));
+  return code;
+}
+
 int aclpci_control_mark_issued(struct aclpci_file *owner)
 {
   struct aclpci_dev *a;
