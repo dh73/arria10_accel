@@ -75,6 +75,25 @@ int main(void) {
      assert(aclpci_startup_init(&s,context,0)==-EINVAL);
      assert(aclpci_startup_step(&s,NULL,NULL,NULL)==-EINVAL);
      assert(aclpci_startup_init(&s,NULL,1)==-EINVAL);}
+    /* Revoke before every I/O boundary and after accepted/rejected START.
+     * Each case retains all side effects, then must perform no further I/O. */
+    for(mode=0;mode<2;++mode)for(fail=0;fail<=52;++fail) {
+        struct model m={.reject=mode?3:0};
+        struct window w[3]={{&m,0},{&m,1},{&m,2}};
+        struct aclpci_fence_io io[3];struct aclpci_startup s;
+        for(i=0;i<3;++i)io[i]=(struct aclpci_fence_io){&w[i],read_word,write_word,flush};
+        assert(!aclpci_startup_init(&s,context,1));
+        for(i=0;i<fail;++i)aclpci_startup_step(&s,&io[0],&io[1],&io[2]);
+        assert(m.calls==fail);
+        assert(aclpci_startup_revoke(&s)==-ESTALE);
+        for(i=0;i<54;++i)assert(aclpci_startup_step(&s,&io[0],&io[1],&io[2])==-ESTALE);
+        assert(m.calls==fail && aclpci_startup_revoke(&s)==-ESTALE);
+    }
+    {struct aclpci_startup s;
+     assert(aclpci_startup_init(&s,NULL,1)==-EINVAL);
+     assert(aclpci_startup_revoke(&s)==-EINVAL);
+     assert(aclpci_startup_revoke(NULL)==-EINVAL);}
     puts("KERNEL_STARTUP_PASS boundaries=52 modes=3 ordered_stages terminal_no_replay");
+    puts("KERNEL_STARTUP_REVOKE_PASS boundaries=53 outcomes=2 no_io_after_revoke");
     return 0;
 }

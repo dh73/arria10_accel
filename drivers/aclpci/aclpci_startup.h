@@ -15,6 +15,11 @@ struct aclpci_startup {
     int result; /* 0 pending, 1 accepted, 2 rejected, negative permanent error */
 };
 int aclpci_startup_init(struct aclpci_startup *, const u32 context[6], u64 id);
+/* Revoke on reset, removal, mapping or custody loss, under the same caller
+ * serialization as step. Even a previously accepted START becomes unusable.
+ * Does not undo writes or release custody. Reinitialization requires a newly
+ * qualified coordinated-reset lifetime, never just an observed idle device. */
+int aclpci_startup_revoke(struct aclpci_startup *);
 /* At most one I/O per service event. Terminal outcomes never replay I/O. */
 int aclpci_startup_step(struct aclpci_startup *,
                        const struct aclpci_fence_io *provision,

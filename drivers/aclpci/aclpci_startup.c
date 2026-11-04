@@ -2,6 +2,13 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include "aclpci_startup.h"
+int aclpci_startup_revoke(struct aclpci_startup *s)
+{
+    if (!s) return -EINVAL;
+    /* Retain an earlier failure for diagnosis; success is not a lifetime pin. */
+    if (s->result >= 0) s->result = -ESTALE;
+    return s->result;
+}
 int aclpci_startup_init(struct aclpci_startup *s, const u32 context[6], u64 id)
 {
     int error;
