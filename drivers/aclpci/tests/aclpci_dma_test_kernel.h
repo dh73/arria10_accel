@@ -104,7 +104,7 @@ struct semaphore { bool held; };
 struct cdev { int identity; };
 struct inode { struct cdev *i_cdev; unsigned int minor; };
 struct file { void *private_data; };
-struct acl_cmd { int bar_id, command, is_diff_endian; void *device_addr, *user_addr; size_t size; };
+#include "../pcie_linux_driver_exports.h"
 #define iminor(i) ((i)->minor)
 #define BUF_SIZE PAGE_SIZE
 static inline void kref_init(struct kref *r) { r->refs=1; }
