@@ -48,6 +48,10 @@ target_link_libraries(a10_platform_open_test PRIVATE a10_platform_open)
 target_compile_options(a10_platform_open_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME a10_platform_open COMMAND a10_platform_open_test)
 
+add_library(a10_reset_diagnostics STATIC src/reset_diagnostics.cpp)
+target_link_libraries(a10_reset_diagnostics PUBLIC a10_kernel_mailbox)
+target_compile_options(a10_reset_diagnostics PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
 add_library(a10_aclpci_mailbox_port STATIC src/aclpci_mailbox_port.cpp)
 target_link_libraries(a10_aclpci_mailbox_port PUBLIC a10_kernel_mailbox)
 target_include_directories(a10_aclpci_mailbox_port PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
