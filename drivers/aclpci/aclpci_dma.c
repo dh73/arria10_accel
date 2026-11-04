@@ -401,6 +401,64 @@ int aclpci_dma_fence_service(struct aclpci_dev *aclpci)
     return aclpci_dma_fence_step(aclpci, &io);
 }
 
+static int command_mmio_check(struct aclpci_dev *aclpci, unsigned int offset)
+{
+    if (!aclpci->online || aclpci->removed || aclpci->pr_in_progress)
+        return -ENODEV;
+    if (!aclpci->io_blocked || !aclpci->dma_data.contract_valid)
+        return -EACCES;
+    if ((offset & 3) || offset > ACLPCI_PLATFORM_COMMAND_BYTES - sizeof(u32))
+        return -EINVAL;
+    if (!aclpci->bar[ACLPCI_PLATFORM_CONTROL_BAR] ||
+        aclpci->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] <
+        ACLPCI_PLATFORM_COMMAND_BASE + ACLPCI_PLATFORM_COMMAND_BYTES)
+        return -ERANGE;
+    return 0;
+}
+static int command_mmio_read(void *context, unsigned int offset, u32 *value)
+{
+    struct aclpci_dev *aclpci = context;
+    int error = command_mmio_check(aclpci, offset);
+    if (error) return error;
+    *value = ioread32(aclpci->bar[ACLPCI_PLATFORM_CONTROL_BAR] +
+                     ACLPCI_PLATFORM_COMMAND_BASE + offset);
+    return 0;
+}
+static int command_mmio_write(void *context, unsigned int offset, u32 value)
+{
+    struct aclpci_dev *aclpci = context;
+    int error = command_mmio_check(aclpci, offset);
+    if (error) return error;
+    iowrite32(value, aclpci->bar[ACLPCI_PLATFORM_CONTROL_BAR] +
+              ACLPCI_PLATFORM_COMMAND_BASE + offset);
+    return 0;
+}
+static int command_mmio_flush(void *context)
+{
+    u32 value;
+    int error = command_mmio_read(context, 16, &value);
+    /* Before commit, the exclusively owned mailbox must still be idle or
+     * retain the preceding result. This readback is not a DMA fence. */
+    return error ? error : (value == 0 || value == 2 || value == 6) ? 0 : -EIO;
+}
+int aclpci_dma_supervisor_service(struct aclpci_dev *aclpci,
+                                  struct aclpci_supervisor_command *command)
+{
+    struct aclpci_dma *d = &aclpci->dma_data;
+    const struct aclpci_fence_io io = {
+        aclpci, command_mmio_read, command_mmio_write, command_mmio_flush
+    };
+    int result;
+    if (!command) return -EINVAL;
+    if (command->result) return command->result;
+    if (!d->initialized) return command->result = -ENODEV;
+    mutex_lock(&d->lock);
+    if (d->fault) result = command->result = -EIO;
+    else result = aclpci_supervisor_command_step(command, &io);
+    mutex_unlock(&d->lock);
+    return result;
+}
+
 int aclpci_dma_stop(struct aclpci_dev *aclpci)
 {
     struct aclpci_dma *d = &aclpci->dma_data;

@@ -4,6 +4,7 @@
 #include "../aclpci_dma_batch.c"
 #include "../aclpci_dma_request.c"
 #include "../aclpci_round_fence.c"
+#include "../aclpci_supervisor_command.c"
 #include "../aclpci_dma.c"
 #include "../aclpci_fileio.c"
 
@@ -1013,8 +1014,59 @@ static void test_kernel_fence_mmio(void)
     puts("PASS kernel fence MMIO: exact BAR bounds, readback sequence, 21 steps, removed/offline/PR rejection and sticky failures");
 }
 
+static void test_kernel_supervisor_mmio(void)
+{
+    unsigned mode, boundary, n;
+    for (mode=0; mode<9; ++mode) for (boundary=0; boundary<12; ++boundary) {
+        struct aclpci_supervisor_command c;
+        unsigned reads, writes;
+        int result;
+        u32 *w = bar4 + ACLPCI_PLATFORM_COMMAND_BASE/4;
+        init_engine();
+        device.io_blocked = true;
+        device.bar[2] = bar4;
+        device.bar_length[2] = ACLPCI_PLATFORM_COMMAND_BASE + ACLPCI_PLATFORM_COMMAND_BYTES;
+        memset(w, 0, ACLPCI_PLATFORM_COMMAND_BYTES);
+        assert(!aclpci_supervisor_command_init(&c, 0x100000002ULL, 2));
+        for(n=0; n<boundary; ++n) {
+            if(n==8) { w[4]=6; w[6]=2; w[7]=1; }
+            assert(!aclpci_dma_supervisor_service(&device, &c));
+        }
+        if(boundary==8) { w[4]=6; w[6]=2; w[7]=1; }
+        if(mode==1) --device.bar_length[2];
+        if(mode==2) device.bar[2]=NULL;
+        if(mode==3) device.removed=true;
+        if(mode==4) device.online=false;
+        if(mode==5) device.pr_in_progress=true;
+        if(mode==6) device.io_blocked=false;
+        if(mode==7) device.dma_data.contract_valid=false;
+        if(mode==8) device.dma_data.fault=-EIO;
+        reads=test.mmio_reads; writes=test.mmio_writes;
+        result=aclpci_dma_supervisor_service(&device, &c);
+        if(mode) {
+            assert(result<0 && test.mmio_reads==reads && test.mmio_writes==writes);
+            device.bar[2]=bar4; device.bar_length[2]=sizeof(bar4);
+            device.removed=false; device.online=true; device.pr_in_progress=false;
+            device.io_blocked=true; device.dma_data.contract_valid=true; device.dma_data.fault=0;
+            assert(aclpci_dma_supervisor_service(&device, &c)==result);
+            assert(test.mmio_reads==reads && test.mmio_writes==writes);
+        } else {
+            for(n=boundary+1; n<12; ++n) {
+                if(n==8) { w[4]=6; w[6]=2; w[7]=1; }
+                result=aclpci_dma_supervisor_service(&device, &c);
+            }
+            assert(result==1 && w[0]==2 && w[1]==1 && w[2]==2 && w[3]==0xa10c0001);
+            assert(device.io_blocked);
+        }
+        assert(!aclpci_dma_finish(&device));
+        assert(!test.live_allocs);
+    }
+    puts("PASS kernel supervisor MMIO: all 12 boundaries, bounded BAR, removal/PR/admission/contract/fault gates, sticky failure");
+}
+
 int main(void)
 {
+    test_kernel_supervisor_mmio();
     test_kernel_fence_mmio();
     test_mapping_faults();
     test_offsets_and_owner();
@@ -1027,6 +1079,6 @@ int main(void)
     test_engine_bad_status_and_bounds();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
-    puts("PASS all twelve executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all thirteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

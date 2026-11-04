@@ -41,6 +41,7 @@
 #include <linux/workqueue.h>
 #include "aclpci_dma_request.h"
 #include "aclpci_round_fence.h"
+#include "aclpci_supervisor_command.h"
 
 struct aclpci_dev;
 struct aclpci_file;
@@ -93,4 +94,7 @@ int aclpci_dma_fence_arm(struct aclpci_dev *, const u32 context[6], u64 round);
 int aclpci_dma_fence_step(struct aclpci_dev *, const struct aclpci_fence_io *);
 /* One event-driven step through the mapped BAR2; no polling or admission. */
 int aclpci_dma_fence_service(struct aclpci_dev *);
+/* Caller retains exclusive command ownership and immutable image/reset context
+ * across steps under device sem. Does not open admission or certify drain. */
+int aclpci_dma_supervisor_service(struct aclpci_dev *, struct aclpci_supervisor_command *);
 #endif
