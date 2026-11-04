@@ -10,6 +10,6 @@ Writes, partial reads and invalid offsets are rejected. Diagnostics remain
 readable after an invalid access. The independent-clock test checks all 256
 status combinations and exactly 263 accepted bus commands.
 
-The prepared BAR2 route occupies bytes 1088–1095. Its containing-frontend
-qualification is separate from the passing block/CDC test; physical access
-and whole-platform acceptance remain open.
+The prepared BAR2 route occupies bytes 1088–1095. The containing-frontend test passes
+context provisioning, metrics isolation and diagnostic reads with invalid
+health/context. Physical access and whole-platform acceptance remain open.
