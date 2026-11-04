@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Uncompiled throughput candidate: explicitly unrolled 16-lane accesses.
+// Throughput candidate: explicitly unrolled, non-aliasing 16-lane accesses.
 // Explicit single-memory interface for early RTL generation. These launchers
 // require backend-qualified, disjoint USM buffers; they do not select a device.
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
 #include <cstdint>
 #include <stdexcept>
+#include "streaming_buffer_contract.hpp"
 
 namespace a10_streaming_unrolled {
 namespace fpga = sycl::ext::intel::experimental;
@@ -21,7 +22,8 @@ auto memory(T* p) {
   return sycl::ext::oneapi::experimental::annotated_arg(p, fpga::register_map,
       fpga::buffer_location<0>, fpga::dwidth<512>, fpga::awidth<35>,
       fpga::latency<0>, fpga::maxburst<1>,
-      sycl::ext::oneapi::experimental::alignment<64>);
+      sycl::ext::oneapi::experimental::alignment<64>,
+      sycl::ext::oneapi::experimental::unaliased);
 }
 
 class Copy;
@@ -29,6 +31,9 @@ class Triad;
 
 sycl::event copy(sycl::queue& queue, const std::uint32_t* input,
                  std::uint32_t* output, std::uint32_t count) {
+  a10_streaming_contract::require_disjoint(
+      reinterpret_cast<std::uintptr_t>(input),
+      reinterpret_cast<std::uintptr_t>(output), count);
   auto src = memory(input);
   auto dst = memory(output);
   return queue.single_task<Copy>([=] {
@@ -50,6 +55,12 @@ sycl::event copy(sycl::queue& queue, const std::uint32_t* input,
 sycl::event triad(sycl::queue& queue, const std::uint32_t* input_a,
                   const std::uint32_t* input_b, std::uint32_t* output,
                   std::uint32_t scale, std::uint32_t count) {
+  const auto pa = reinterpret_cast<std::uintptr_t>(input_a);
+  const auto pb = reinterpret_cast<std::uintptr_t>(input_b);
+  const auto po = reinterpret_cast<std::uintptr_t>(output);
+  a10_streaming_contract::require_disjoint(pa, pb, count);
+  a10_streaming_contract::require_disjoint(pa, po, count);
+  a10_streaming_contract::require_disjoint(pb, po, count);
   auto a = memory(input_a);
   auto b = memory(input_b);
   auto dst = memory(output);
