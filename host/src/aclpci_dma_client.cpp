@@ -15,6 +15,17 @@ AclPciDmaClient::State AclPciDmaClient::submit(void* buffer,std::size_t bytes,
     address>std::numeric_limits<std::uintptr_t>::max() ||
     bytes>std::numeric_limits<std::uint64_t>::max()-address)
    return state_=State::Invalid;
+ // Refuse older signal-delivering drivers before any DMA submission.
+ // This checks software ABI only; image qualification remains separate.
+ std::uint32_t capabilities[ACLPCI_DRIVER_CAPABILITIES_WORDS]={ACLPCI_DRIVER_CAPABILITIES_VERSION,0,0,0};
+ acl_cmd query{};query.bar_id=ACLPCI_CMD_BAR;query.command=ACLPCI_CMD_DRIVER_CAPABILITIES;
+ query.user_addr=capabilities;query.size=sizeof capabilities;
+ try {if(reader_(fd_,&query,sizeof query)!=0)return state_=State::Invalid;}
+ catch(...) {return state_=State::Invalid;}
+ constexpr auto required=ACLPCI_DRIVER_CAP_EVENT_ONLY_DMA|ACLPCI_DRIVER_CAP_EXACT_RECEIPT;
+ if(capabilities[0]!=ACLPCI_DRIVER_CAPABILITIES_VERSION ||
+    (capabilities[1]&required)!=required || capabilities[2]!=4 ||
+    capabilities[3]!=ACLPCI_DMA_RECEIPT_VERSION)return state_=State::Invalid;
  const auto baseline=read_dma_receipt(fd_,0,reader_);
  if((baseline.state!=DmaReceiptState::None && baseline.state!=DmaReceiptState::Drained) ||
     baseline.submitted==std::numeric_limits<std::uint64_t>::max())return state_=State::Unknown;

@@ -1313,6 +1313,32 @@ static void test_identity_discovery_mmio(void)
     puts("PASS identity discovery: owned bounded read-only BAR2 capture without DMA admission");
 }
 
+static void test_driver_capabilities_uapi(void)
+{
+    unsigned mode;
+    for (mode=0; mode<5; ++mode) {
+        u32 words[4]={1,0,0,0};
+        struct file fd={.private_data=&file};
+        struct acl_cmd cmd={.bar_id=ACLPCI_CMD_BAR,.command=ACLPCI_CMD_DRIVER_CAPABILITIES,
+                           .user_addr=words,.size=sizeof words};
+        unsigned reads,writes,pins;
+        long result;
+        init_engine();device.io_blocked=true;device.dma_data.contract_valid=false;
+        if(mode==1)words[1]=1;
+        if(mode==2)cmd.size-=4;
+        if(mode==3)cmd.is_diff_endian=1;
+        reads=test.mmio_reads;writes=test.mmio_writes;pins=test.pin_calls;
+        result=mode==4?aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL):
+                       aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL);
+        assert(result==(mode?-EINVAL:0));
+        if(!mode)assert(words[0]==1&&words[1]==7&&words[2]==4&&words[3]==ACLPCI_DMA_RECEIPT_VERSION);
+        assert(test.mmio_reads==reads&&test.mmio_writes==writes&&test.pin_calls==pins);
+        assert(!device.control_owner&&!device.dma_data.contract_valid&&device.io_blocked);
+        assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    }
+    puts("PASS driver capabilities: software-only query, framing, no MMIO or admission");
+}
+
 static void test_identity_snapshot_uapi(void)
 {
     unsigned mode;
@@ -1569,6 +1595,7 @@ int main(void)
     test_identity_discovery_mmio();
     test_identity_checked_mmio();
     test_identity_snapshot_uapi();
+    test_driver_capabilities_uapi();
     test_kernel_startup_mmio();
     test_fence_custody_loss();
     test_kernel_supervisor_mmio();

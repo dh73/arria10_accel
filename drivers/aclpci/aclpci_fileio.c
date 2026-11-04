@@ -643,6 +643,21 @@ static ssize_t aclpci_dma_receipt_user(struct aclpci_file *owner,
   return copy_to_user(cmd->user_addr, words, sizeof(words)) ? -EFAULT : 0;
 }
 
+static ssize_t aclpci_driver_capabilities_user(const struct acl_cmd *cmd, int reading)
+{
+  u32 words[ACLPCI_DRIVER_CAPABILITIES_WORDS];
+  if (!reading || cmd->size != sizeof(words) || cmd->device_addr || cmd->is_diff_endian)
+    return -EINVAL;
+  if (copy_from_user(words, cmd->user_addr, sizeof(words))) return -EFAULT;
+  if (words[0] != ACLPCI_DRIVER_CAPABILITIES_VERSION || words[1] || words[2] || words[3])
+    return -EINVAL;
+  words[1] = ACLPCI_DRIVER_CAP_EVENT_ONLY_DMA | ACLPCI_DRIVER_CAP_EXACT_RECEIPT |
+             ACLPCI_DRIVER_CAP_IDENTITY_SNAPSHOT;
+  words[2] = 4;
+  words[3] = ACLPCI_DMA_RECEIPT_VERSION;
+  return copy_to_user(cmd->user_addr, words, sizeof(words)) ? -EFAULT : 0;
+}
+
 static ssize_t aclpci_identity_snapshot_user(struct aclpci_file *owner,
                                            const struct acl_cmd *cmd, int reading)
 {
@@ -749,6 +764,10 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
   size = kcmd.size;
   if (kcmd.bar_id == ACLPCI_CMD_BAR) {
+    if (kcmd.command == ACLPCI_CMD_DRIVER_CAPABILITIES) {
+      result = aclpci_driver_capabilities_user(&kcmd, reading);
+      goto done;
+    }
     if (kcmd.command == ACLPCI_CMD_IDENTITY_SNAPSHOT) {
       result = aclpci_identity_snapshot_user(owner, &kcmd, reading);
       goto done;
