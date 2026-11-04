@@ -13,10 +13,11 @@ void receipt_fixture_stop();void receipt_fixture_complete();void receipt_fixture
 }
 using namespace asus::a10;using namespace asus::a10::mmd;
 static int completion_fd;static bool fail_receipt;static unsigned receipt_reads;
-static void* read_buffer;static std::size_t read_bytes;
+static void* read_buffer;static std::size_t read_bytes,read_address;static unsigned read_submissions;
 static ssize_t rd(int fd,void* p,std::size_t n){assert(fd==completion_fd);
  if(static_cast<acl_cmd*>(p)->command==ACLPCI_CMD_DMA_RECEIPT){++receipt_reads;if(fail_receipt)return -1;}
  if(static_cast<acl_cmd*>(p)->command==ACLPCI_CMD_DMA_SUBMIT){
+  ++read_submissions;read_address=reinterpret_cast<std::uintptr_t>(static_cast<acl_cmd*>(p)->device_addr);
   read_buffer=static_cast<acl_cmd*>(p)->user_addr;read_bytes=static_cast<acl_cmd*>(p)->size;
  }
  return receipt_fixture_read(p,n);}
@@ -150,8 +151,55 @@ int main(){
   assert(byte_port.commands==2*(round+1)&&!std::memcmp(byte_port.memory+1,payload,8));
   assert(byte_port.memory[0]==0x55&&byte_port.memory[9]==0x55);
  }
+ unsigned copy_cases=0;
+ for(unsigned source=0;source<4;++source)for(unsigned destination=0;destination<4;++destination)for(unsigned count=1;count<=9;++count){
+  for(unsigned i=0;i<16;++i)byte_port.memory[i]=static_cast<unsigned char>(i*13+copy_cases);
+  unsigned char expected[16];std::memcpy(expected,byte_port.memory,16);std::memmove(expected+destination,expected+source,count);
+  auto reads=read_submissions,writes=write_submissions;auto callbacks=status.calls;
+  assert(!aocl_mmd_copy(status.handle,&status,count,7,0x200000+source,0x200000+destination));
+  assert(aocl_mmd_close(status.handle)<0);
+  while(d->session.pending()){
+   auto r=d->session.wait_one();
+   assert(r==DriverDmaSession::Result::Retained||r==DriverDmaSession::Result::Delivered);
+   if(read_submissions!=reads){
+    assert(read_submissions==reads+1&&write_submissions==writes&&!byte_port.pending);
+    assert(read_address>=0x200000&&read_address+read_bytes<=0x200010);
+    std::memcpy(read_buffer,byte_port.memory+read_address-0x200000,read_bytes);
+    assert(flush_ready(status.handle)&&status.calls==callbacks);
+    receipt_fixture_complete();d->event();reads=read_submissions;
+   }
+   if(write_submissions!=writes){
+    assert(write_submissions==writes+1&&write_address>=0x200000&&write_address+write_bytes<=0x200010);
+    std::memcpy(byte_port.memory+write_address-0x200000,write_buffer,write_bytes);
+    receipt_fixture_complete();d->event();writes=write_submissions;
+   }
+   if(byte_port.pending)byte_port.complete();
+  }
+  assert(flush_ready(status.handle)&&status.calls==callbacks+1&&!status.result);
+  assert(!std::memcmp(expected,byte_port.memory,16));++copy_cases;
+ }
+ assert(copy_cases==144);
  assert(!aocl_mmd_close(status.handle));assert(install_backend(nullptr));receipt_fixture_finish();d.reset();factory.reset();
 
+ // A cancelled source read cannot start destination writes.
+ receipt_fixture_begin();
+ {
+  BytePort destination;DriverDmaSession session(completion_fd,rd,wr);int callbacks=0;
+  assert(session.configure_byte_writes(destination,1024,0x80000000,1));
+  Request request{Kind::Copy,7,8,0x200001,0x200003,nullptr,{10,1}};
+  auto before=write_submissions;
+  assert(session.submit(request,[&](dma::Ticket,int result,dma::DrainEvidence evidence){
+   assert(result==-ECANCELED&&evidence==dma::DrainEvidence::PerOperation);++callbacks;
+  })==Submission::Accepted);
+  assert(session.wait_one()==DriverDmaSession::Result::Retained);
+  receipt_fixture_stop();receipt_fixture_complete();
+  std::uint64_t one=1;assert(::write(completion_fd,&one,sizeof one)==sizeof one);
+  assert(session.wait_one()==DriverDmaSession::Result::Delivered);
+  assert(::read(completion_fd,&one,sizeof one)==sizeof one);
+  assert(callbacks==1&&!session.pending()&&session.attention()&&!destination.commands&&write_submissions==before);
+  for(auto b:destination.memory)assert(b==0x55);
+ }
+ receipt_fixture_finish();
  // Uncertain edge submission retains staging and never reaches bulk or callback.
  {
   BytePort unknown;unknown.fail_command=true;int callbacks=0;
@@ -184,5 +232,5 @@ int main(){
   assert(::read(completion_fd,&one,sizeof one)==sizeof one);
  }
  receipt_fixture_finish();::close(completion_fd);
- std::cout<<"MMD_EVENT_SESSION_PASS staged_write drained_read cancelled_read early_irq close_retention ordered_copy byte_write_rounds=2 masked_uncertainty\n";
+ std::cout<<"MMD_EVENT_SESSION_PASS staged_write drained_read cancelled_read early_irq close_retention ordered_copy byte_write_rounds=2 byte_copy_cases=144 cancelled_copy_source masked_uncertainty\n";
 }

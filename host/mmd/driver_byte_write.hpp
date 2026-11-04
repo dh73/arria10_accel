@@ -8,8 +8,9 @@ namespace asus::a10::mmd {
 // Transfer phase on a qualified, exclusively owned FD/mailbox/context. All
 // allocations occur before hardware use. Keep this object and source staging
 // until terminal, including Attention. No automatic retry or reset recovery.
-// Accepted means mailbox backend acceptance and DMA retirement, NOT a platform
-// visibility fence. The owning transport must fence before its final callback.
+// Accepted combines the explicitly selected mailbox completion semantics with
+// DMA retirement. BackendAcceptance alone does not establish edge visibility;
+// the MMD session requires SelectedByteReadback. Neither is a global host fence.
 class DriverByteWrite final {
  public:
   enum class State { Progress, MailboxPending, DmaPending, Accepted,
