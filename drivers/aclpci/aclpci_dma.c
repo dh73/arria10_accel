@@ -341,10 +341,16 @@ int aclpci_dma_fence_step(struct aclpci_dev *aclpci, const struct aclpci_fence_i
     int result;
     if (!d->initialized) return -ENODEV;
     mutex_lock(&d->lock);
-    if (!READ_ONCE(aclpci->io_blocked) || d->active || !d->fence_started ||
+    if (!d->fence_started) {
+        result = -EBUSY;
+    } else if (d->retirement_fence.result < 0) {
+        result = d->retirement_fence.result;
+    } else if (!READ_ONCE(aclpci->io_blocked) || d->active ||
         d->fence_generation != d->publication_generation ||
         !d->contract_valid || d->fault) {
-        result = -EBUSY;
+        /* A partially published echo/commit belongs to the original custody.
+         * Restoring flags later cannot make that transaction safe to resume. */
+        result = d->retirement_fence.result = -ESTALE;
     } else {
         result = aclpci_round_fence_step(&d->retirement_fence, io);
     }

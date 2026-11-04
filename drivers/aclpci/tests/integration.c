@@ -408,11 +408,9 @@ static void settle_engine(void)
     device.io_blocked = true;
     --device.dma_data.fence_generation;
     assert(aclpci_dma_finish(&device) == -EBUSY);
-    assert(aclpci_dma_fence_step(&device, &io) == -EBUSY);
     ++device.dma_data.fence_generation; /* restore fixture, no production API */
     device.dma_data.contract_valid = false;
     assert(aclpci_dma_finish(&device) == -EBUSY);
-    assert(aclpci_dma_fence_step(&device, &io) == -EBUSY);
     device.dma_data.contract_valid = true;
     assert(test.coherent_live == coherent && m.commits == 1);
 }
@@ -1014,6 +1012,41 @@ static void test_kernel_fence_mmio(void)
     puts("PASS kernel fence MMIO: exact BAR bounds, readback sequence, 21 steps, removed/offline/PR rejection and sticky failures");
 }
 
+static void test_fence_custody_loss(void)
+{
+    unsigned mode, boundary, n;
+    const u32 context[6]={1,2,3,4,5,6};
+    for(mode=0; mode<5; ++mode) for(boundary=0; boundary<=21; ++boundary) {
+        struct retirement_model m={.words={1,2,3,4,5,6,1,0}};
+        struct aclpci_fence_io io={&m,retirement_read,retirement_write,retirement_flush};
+        unsigned mask, commits;
+        init_engine(); device.io_blocked=true;
+        device.dma_data.publication_generation=1;
+        assert(!aclpci_dma_fence_arm(&device,context,1));
+        for(n=0;n<boundary;++n) assert(aclpci_dma_fence_step(&device,&io)==(n==20));
+        mask=m.mask; commits=m.commits;
+        if(mode==0)device.io_blocked=false;
+        if(mode==1)device.dma_data.active=true;
+        if(mode==2)++device.dma_data.publication_generation;
+        if(mode==3)device.dma_data.contract_valid=false;
+        if(mode==4)device.dma_data.fault=-EIO;
+        assert(aclpci_dma_fence_step(&device,&io)==-ESTALE);
+        device.io_blocked=true; device.dma_data.active=false;
+        device.dma_data.publication_generation=1;
+        device.dma_data.contract_valid=true; device.dma_data.fault=0;
+        assert(aclpci_dma_fence_step(&device,&io)==-ESTALE);
+        assert(m.mask==mask && m.commits==commits);
+        assert(aclpci_dma_fence_arm(&device,context,1)==-EBUSY);
+        assert(aclpci_dma_finish(&device)==-EBUSY);
+        /* Fixture-only cleanup: no real DMA was published. Production has
+         * no API to erase its publication history after a failed fence. */
+        device.dma_data.publication_generation=0;
+        assert(!aclpci_dma_finish(&device));
+        assert(!test.live_allocs);
+    }
+    puts("PASS fence custody: five revocations at every protocol boundary stay terminal after flag restoration");
+}
+
 static void test_kernel_supervisor_mmio(void)
 {
     unsigned mode, boundary, n;
@@ -1066,6 +1099,7 @@ static void test_kernel_supervisor_mmio(void)
 
 int main(void)
 {
+    test_fence_custody_loss();
     test_kernel_supervisor_mmio();
     test_kernel_fence_mmio();
     test_mapping_faults();
@@ -1079,6 +1113,6 @@ int main(void)
     test_engine_bad_status_and_bounds();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
-    puts("PASS all thirteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all fourteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }
