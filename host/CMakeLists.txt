@@ -11,6 +11,14 @@ option(A10_BUILD_KERNEL_EXECUTOR "Build the generated-kernel executor and test" 
 find_package(Threads REQUIRED)
 enable_testing()
 
+add_library(a10_kernel_mailbox STATIC src/kernel_mailbox.cpp)
+target_include_directories(a10_kernel_mailbox PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_compile_options(a10_kernel_mailbox PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_kernel_mailbox_test tests/kernel_mailbox_test.cpp)
+target_link_libraries(a10_kernel_mailbox_test PRIVATE a10_kernel_mailbox)
+target_compile_options(a10_kernel_mailbox_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME a10_kernel_mailbox COMMAND a10_kernel_mailbox_test)
+
 if(A10_BUILD_DMA_LIFECYCLE)
   set(AOCL_MMD_INCLUDE_DIR "" CACHE PATH
       "Directory containing MMD/aocl_mmd.h from pinned fpga-runtime-for-opencl")
