@@ -12,6 +12,11 @@
  * DRAINED is published after mapping release, not on IRQ or idle observation.
  * The receipt covers request buffers, not destruction of shared DMA tables.
  * Request generations never wrap and are scoped to the open file lifetime. */
+/* Explicit asynchronous DMA, using acl_cmd device_addr/user_addr/size and
+ * read/write direction. No PIO fallback; native byte order only. Size and
+ * addresses must meet the driver's DMA constraints. Zero return is acceptance,
+ * not completion; consume the matching DMA_RECEIPT before buffer reuse. */
+#define ACLPCI_CMD_DMA_SUBMIT 22
 #define ACLPCI_CMD_DMA_RECEIPT 21
 #define ACLPCI_DMA_RECEIPT_VERSION 1
 #define ACLPCI_DMA_RECEIPT_WORDS 8

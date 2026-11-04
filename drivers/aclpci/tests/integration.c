@@ -1479,7 +1479,21 @@ static void test_dma_receipt(void)
     init_engine();
     assert(!aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL));
     assert(w[1]==ACLPCI_DMA_RECEIPT_NONE && !w[2] && !w[4]);
-    assert(!aclpci_dma_rw(&device,&file,(void *)0x200000,(void *)0x100000,4096,0));
+    {
+      struct acl_cmd submit = { .bar_id=ACLPCI_CMD_BAR, .command=ACLPCI_CMD_DMA_SUBMIT,
+        .device_addr=(void *)0x200000, .user_addr=(void *)0x100000, .size=4 };
+      unsigned pins=test.pin_calls, bells=test.doorbells;
+      submit.is_diff_endian=1;
+      assert(aclpci_write(&fd,(char *)&submit,sizeof submit,NULL)==-EINVAL);
+      submit.is_diff_endian=0;submit.size=0;
+      assert(aclpci_write(&fd,(char *)&submit,sizeof submit,NULL)==-EINVAL);
+      submit.size=3;
+      assert(aclpci_write(&fd,(char *)&submit,sizeof submit,NULL)==-EINVAL);
+      assert(test.pin_calls==pins && test.doorbells==bells && !file.dma_submitted);
+      submit.size=4;
+      assert(!aclpci_write(&fd,(char *)&submit,sizeof submit,NULL));
+      assert(test.doorbells==bells+1 && device.dma_data.active);
+    }
     memset(w,0,sizeof w);w[0]=1;w[2]=1;
     assert(!aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL));
     assert(w[1]==ACLPCI_DMA_RECEIPT_PENDING && w[2]==1 && !w[4] && !test.unmaps);

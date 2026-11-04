@@ -699,6 +699,15 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
   size = kcmd.size;
   if (kcmd.bar_id == ACLPCI_CMD_BAR) {
+    if (kcmd.command == ACLPCI_CMD_DMA_SUBMIT) {
+      if (kcmd.is_diff_endian || !size || size > (SIZE_MAX >> 1)) {
+        result = -EINVAL;
+        goto done;
+      }
+      result = aclpci_dma_rw(aclpci, owner, kcmd.device_addr,
+                             (void __user *)kcmd.user_addr, size, reading);
+      goto done;
+    }
     if (kcmd.command == ACLPCI_CMD_DMA_RECEIPT) {
       result = aclpci_dma_receipt_user(owner, &kcmd, reading);
       goto done;
