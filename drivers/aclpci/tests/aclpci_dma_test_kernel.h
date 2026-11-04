@@ -260,6 +260,9 @@ struct aclpci_file {
     struct kref ref;
     struct aclpci_dev *aclpci;
     bool closed;
+    /* Protected by dma_data.lock; completion published after mapping release. */
+    u64 dma_submitted, dma_completed;
+    int dma_completion_result;
     int async_error;
 };
 void aclpci_file_get(struct aclpci_file *f);

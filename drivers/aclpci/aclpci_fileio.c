@@ -595,6 +595,36 @@ static bool protected_write(const struct acl_cmd *cmd, size_t size)
 /* High-level read/write dispatcher. */
 /* Called under sem, before raw MMIO and generic commands. Input is copied
  * completely before custody or MMIO; no copyout can obscure an issued step. */
+static ssize_t aclpci_dma_receipt_user(struct aclpci_file *owner,
+                                      const struct acl_cmd *cmd, int reading)
+{
+  struct aclpci_dma *d = &owner->aclpci->dma_data;
+  u32 words[ACLPCI_DMA_RECEIPT_WORDS];
+  u64 expected;
+  unsigned int i;
+  if (!reading || cmd->size != sizeof(words) || cmd->device_addr || cmd->is_diff_endian)
+    return -EINVAL;
+  if (copy_from_user(words, cmd->user_addr, sizeof(words))) return -EFAULT;
+  if (words[0] != ACLPCI_DMA_RECEIPT_VERSION || words[1]) return -EINVAL;
+  for (i=4; i<ACLPCI_DMA_RECEIPT_WORDS; ++i) if (words[i]) return -EINVAL;
+  expected = (u64)words[2] | ((u64)words[3] << 32);
+  mutex_lock(&d->lock);
+  if (expected && expected != owner->dma_submitted) {
+    mutex_unlock(&d->lock);
+    return -ESTALE;
+  }
+  words[1] = !owner->dma_submitted ? ACLPCI_DMA_RECEIPT_NONE :
+    owner->dma_completed == owner->dma_submitted ? ACLPCI_DMA_RECEIPT_DRAINED : ACLPCI_DMA_RECEIPT_PENDING;
+  words[2] = lower_32_bits(owner->dma_submitted);
+  words[3] = upper_32_bits(owner->dma_submitted);
+  words[4] = lower_32_bits(owner->dma_completed);
+  words[5] = upper_32_bits(owner->dma_completed);
+  words[6] = words[1] == ACLPCI_DMA_RECEIPT_DRAINED ? (u32)owner->dma_completion_result : 0;
+  words[7] = 0;
+  mutex_unlock(&d->lock);
+  return copy_to_user(cmd->user_addr, words, sizeof(words)) ? -EFAULT : 0;
+}
+
 static ssize_t aclpci_startup_user(struct aclpci_file *owner,
                                  const struct acl_cmd *cmd, int reading)
 {
@@ -669,6 +699,10 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
   size = kcmd.size;
   if (kcmd.bar_id == ACLPCI_CMD_BAR) {
+    if (kcmd.command == ACLPCI_CMD_DMA_RECEIPT) {
+      result = aclpci_dma_receipt_user(owner, &kcmd, reading);
+      goto done;
+    }
     if (kcmd.command == ACLPCI_CMD_STARTUP) {
       result = aclpci_startup_user(owner, &kcmd, reading);
       goto done;

@@ -596,6 +596,7 @@ static void test_engine_multitable(void)
                           260 * PAGE_SIZE, 1));
     initial_pins = test.pins;
     assert(initial_pins == 260 && test.pin_calls == 1);
+    assert(file.dma_submitted==1 && file.dma_completed==0);
     assert(d->request.first_id == 127 && d->request.count == 1);
     assert(test.doorbells == 1 && file.ref.refs == 2 && submitter.refs == 2);
     assert(mm.refs == 2 && mm.locked == 260);
@@ -626,6 +627,7 @@ static void test_engine_multitable(void)
         }
     }
     assert(!d->active && test.doorbells == 4 && test.rmbs == 4);
+    assert(file.dma_submitted==1 && file.dma_completed==1 && !file.dma_completion_result);
     assert(test.signal_count == 1 && test.signal.si_int == 0x5a && !test.signal.si_errno);
     assert(test.signal_task == &submitter && test.dirty == 260);
     assert(aclpci_dma_get_idle_status(&device) == 1);
@@ -639,8 +641,10 @@ static void test_engine_multitable(void)
                           4096, 0));
     run_work();
     assert(d->active && test.signal_count == 1);
+    assert(file.dma_submitted==2 && file.dma_completed==1);
     complete_with_irq();
     assert(test.signal_count == 2 && test.dirty == 260);
+    assert(file.dma_completed==2 && !file.dma_completion_result);
     finish_engine();
     puts("PASS integration: 260-page/four-table ring, one caller-mm pin owner, exact direction/index, duplicate/stale IRQ, one captured completion");
 }
@@ -1465,8 +1469,51 @@ static void test_startup_user_command(void)
     puts("PASS userspace startup: framing, direction, copy failure, qualification, custody, no duplicate ARM, revocation");
 }
 
+static void test_dma_receipt(void)
+{
+    u32 w[ACLPCI_DMA_RECEIPT_WORDS] = { ACLPCI_DMA_RECEIPT_VERSION };
+    struct file fd = { .private_data = &file };
+    struct acl_cmd cmd = { .bar_id=ACLPCI_CMD_BAR, .command=ACLPCI_CMD_DMA_RECEIPT,
+                          .user_addr=w, .size=sizeof(w) };
+    unsigned int writes;
+    init_engine();
+    assert(!aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL));
+    assert(w[1]==ACLPCI_DMA_RECEIPT_NONE && !w[2] && !w[4]);
+    assert(!aclpci_dma_rw(&device,&file,(void *)0x200000,(void *)0x100000,4096,0));
+    memset(w,0,sizeof w);w[0]=1;w[2]=1;
+    assert(!aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL));
+    assert(w[1]==ACLPCI_DMA_RECEIPT_PENDING && w[2]==1 && !w[4] && !test.unmaps);
+    {
+      struct aclpci_file other = { .aclpci=&device };
+      struct file other_fd = { .private_data=&other };
+      memset(w,0,sizeof w);w[0]=1;
+      assert(!aclpci_read(&other_fd,(char *)&cmd,sizeof cmd,NULL));
+      assert(w[1]==ACLPCI_DMA_RECEIPT_NONE && !w[2] && !w[4]);
+    }
+    assert(aclpci_dma_stop(&device)==-EINPROGRESS);
+    assert(file.dma_completed==0);
+    complete_with_irq();
+    memset(w,0,sizeof w);w[0]=1;w[2]=1;
+    assert(!aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL));
+    assert(w[1]==ACLPCI_DMA_RECEIPT_DRAINED && w[4]==1 && (int)w[6]==-ECANCELED);
+    assert(test.unmaps && test.unpins);
+    memset(w,0,sizeof w);w[0]=1;w[2]=2;
+    assert(aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL)==-ESTALE);
+    assert(w[2]==2 && !w[4]);
+    memset(w,0,sizeof w);w[0]=1;w[7]=1;
+    assert(aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);
+    w[7]=0;assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);
+    writes=test.mmio_writes;
+    file.dma_submitted=~(u64)0;
+    assert(aclpci_dma_rw(&device,&file,(void *)0x200000,(void *)0x100000,4096,0)==-EOVERFLOW);
+    assert(writes==test.mmio_writes);
+    finish_engine();
+    puts("PASS file-specific DMA receipt: pending, released cancellation, stale generation, framing, no wrap");
+}
+
 int main(void)
 {
+    test_dma_receipt();
     test_startup_user_command();
     test_closure_mmio();
     test_close_publication();
@@ -1490,6 +1537,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all twenty-three executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all twenty-four executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

@@ -138,6 +138,8 @@ static int complete_locked(struct aclpci_dma *d, struct dma_completion *done)
         WRITE_ONCE(d->contract_valid, false);
         return error;
     }
+    d->owner->dma_completed = d->owner->dma_submitted;
+    d->owner->dma_completion_result = result;
     done->owner = d->owner;
     done->task = d->task;
     done->signal = d->signal;
@@ -739,6 +741,10 @@ ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,
         error = d->fault ? d->fault : -EOPNOTSUPP;
         goto unlock;
     }
+    if (owner->dma_submitted == ~(u64)0) {
+        error = -EOVERFLOW;
+        goto unlock;
+    }
     /* Validate the WHOLE request before reading registers, pinning pages or
      * publishing even its first descriptor batch. The checked exclusive end
      * above cannot wrap. An unknown image aperture stays fail-closed. */
@@ -786,6 +792,7 @@ ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,
         d->owner = NULL;
         goto release_unsubmitted;
     }
+    ++owner->dma_submitted;
     d->async_result = 0;
     mutex_unlock(&d->lock);
     return 0; /* Historical ABI: accepted asynchronous request returns zero. */
