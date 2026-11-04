@@ -36,7 +36,9 @@ class DriverDmaCopy {
     if(delivered_)return failed_?Service::CallbackFailed:Service::AlreadyDelivered;
     if(!started_ || outcome_==Submission::NotAccepted)return Service::Retained;
     if(!writing_){
-      if(read_.advance()!=AclPciDmaClient::State::Drained)return Service::Retained;
+      auto read_state=read_.advance();
+      if(read_state==AclPciDmaClient::State::Unknown)return Service::Attention;
+      if(read_state!=AclPciDmaClient::State::Drained)return Service::Retained;
       if(read_.result()!=0)return finish(read_.result());
       writing_=true; // Reserve second submission before entering the syscall.
       auto state=write_.submit(storage_.data(),storage_.size(),request_.destination_offset,false);
@@ -44,7 +46,9 @@ class DriverDmaCopy {
       (void)state;
       return Service::Retained;
     }
-    if(write_.advance()!=AclPciDmaClient::State::Drained)return Service::Retained;
+    auto write_state=write_.advance();
+    if(write_state==AclPciDmaClient::State::Unknown)return Service::Attention;
+    if(write_state!=AclPciDmaClient::State::Drained)return Service::Retained;
     return finish(write_.result());
   }
  private:

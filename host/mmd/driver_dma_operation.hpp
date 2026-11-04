@@ -9,7 +9,7 @@ namespace asus::a10::mmd {
 // Qualification, descriptor-file lifetime and IRQ dispatch belong to transport.
 class DriverDmaOperation {
  public:
-  enum class Service { Retained, Delivered, AlreadyDelivered, CallbackFailed };
+  enum class Service { Retained, Delivered, AlreadyDelivered, CallbackFailed, Attention };
   DriverDmaOperation(int fd, Request request, Completion completion,
                      DmaReceiptRead reader=nullptr,DmaReceiptRead writer=nullptr)
     : client_(fd,reader,writer), request_(request), completion_(std::move(completion)) {}
@@ -32,7 +32,9 @@ class DriverDmaOperation {
   Service service() noexcept {
     if(delivered_)return failed_?Service::CallbackFailed:Service::AlreadyDelivered;
     if(!submitted_ || outcome_==Submission::NotAccepted)return Service::Retained;
-    if(client_.advance()!=AclPciDmaClient::State::Drained)return Service::Retained;
+    auto state=client_.advance();
+    if(state==AclPciDmaClient::State::Unknown)return Service::Attention;
+    if(state!=AclPciDmaClient::State::Drained)return Service::Retained;
     delivered_=true;
     try {completion_(request_.ticket,client_.result(),dma::DrainEvidence::PerOperation);}
     catch(...) {failed_=true;return Service::CallbackFailed;}
