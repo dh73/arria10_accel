@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 `timescale 1ns/1ps
 `default_nettype none
+`ifdef IDENTITY_MMIO
+`define IDENTITY_DUT dut.identity
+`else
+`define IDENTITY_DUT dut
+`endif
 module tb;
   `include "shell_identity_params.svh"
   logic clk = 0;
@@ -49,7 +54,13 @@ module tb;
     .cmd_ready(), .cmd_done(), .cmd_accepted(), .cmd_reason(),
     .clear_done(), .clear_blocked(), .reset_request(), .epoch_advance()
   );
+`ifdef IDENTITY_MMIO
+  wire mmio_waitrequest;
+  assign req_ready = !mmio_waitrequest;
+  shell_identity_mmio #(
+`else
   shell_identity_v1 #(
+`endif
     .SOURCE_ID(ID_SOURCE), .BUILD_ID(ID_BUILD),
     .MGMT_SPACE(ID_MGMT_SPACE), .CRA_SPACE(ID_CRA_SPACE),
     .MGMT_BASE(ID_MGMT_BASE), .CRA_BASE(ID_CRA_BASE), .CRA_BYTES(ID_CRA_BYTES)
@@ -64,9 +75,15 @@ module tb;
     .first_fault_code(first_fault_code), .first_adapter_code(first_adapter_code),
     .first_adapter_address(first_adapter_address),
     .first_adapter_address_valid(first_adapter_address_valid),
+`ifdef IDENTITY_MMIO
+    .read(req_valid), .write(1'b0), .address(ID_MGMT_BASE + {48'b0,req_address}),
+    .byteenable(req_byteenable), .waitrequest(mmio_waitrequest),
+    .readdatavalid(rsp_valid), .readdata(rsp_data), .invalid_access()
+`else
     .req_valid(req_valid), .req_address(req_address),
     .req_byteenable(req_byteenable), .req_ready(req_ready),
     .rsp_valid(rsp_valid), .rsp_error(rsp_error), .rsp_data(rsp_data)
+`endif
   );
 
   // Exercise rejected RTL elaboration parameters, not just host range checks.
@@ -102,15 +119,23 @@ module tb;
     req_valid = 1; req_address = address; req_byteenable = be;
     if (req_ready !== 1'b1) $fatal(1,"read not ready");
     @(posedge clk); #1;
+`ifdef IDENTITY_MMIO
+    if (rsp_valid !== 1'b1)
+`else
     if (rsp_valid !== 1'b1 || rsp_error !== expected_error)
+`endif
       $fatal(1,"bad response at %h",address);
     value = rsp_data;
     if (address == 16'd24 && !expected_error)
       for (int g=0;g<5;g++)
         if (bad_valid[g] !== 1'b1 || bad_error[g] !== 1'b0 || bad_data[g] !== 32'b0)
           $fatal(1,"invalid RTL parameters produced a usable guard");
+`ifdef IDENTITY_MMIO
+    if (expected_error && value !== 32'hffffffff)
+`else
     if (expected_error && value !== 32'b0)
-      $fatal(1,"error returned nonzero data");
+`endif
+      $fatal(1,"incorrect error data");
     @(negedge clk); req_valid = 0;
   endtask
   task automatic rd(input int unsigned address, output logic [31:0] value);
@@ -203,7 +228,11 @@ module tb;
     @(negedge clk);
     context_valid = 0; req_valid = 1; req_address = 16'd28; req_byteenable = 4'hf;
     @(posedge clk); #1;
+`ifdef IDENTITY_MMIO
+    if (rsp_valid !== 1 || rsp_data[0] !== 0)
+`else
     if (rsp_valid !== 1 || rsp_error !== 0 || rsp_data[0] !== 0)
+`endif
       $fatal(1,"same-edge invalidation");
     @(negedge clk); req_valid = 0; context_valid = 1'bx;
     rd(24,value);
@@ -221,12 +250,12 @@ module tb;
     if (value == 0 || value == after_seq) $fatal(1,"context sequence stale");
 
     // Boundary injection avoids a billions-of-cycles counter test.
-    @(negedge clk); force dut.sequence_q = 32'hffffffff;
+    @(negedge clk); force `IDENTITY_DUT.sequence_q = 32'hffffffff;
     rd(24,value);
     if (value !== 32'hffffffff) $fatal(1,"maximum sequence unavailable");
     @(negedge clk); health_valid = 0;
     @(posedge clk); #1;
-    @(negedge clk); release dut.sequence_q;
+    @(negedge clk); release `IDENTITY_DUT.sequence_q;
     rd(28,value);
     if (value !== 2) $fatal(1,"sequence did not fail closed");
     @(negedge clk); health_valid = 1;
@@ -252,3 +281,5 @@ module tb;
   end
 endmodule
 `default_nettype wire
+
+`undef IDENTITY_DUT

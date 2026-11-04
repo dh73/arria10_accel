@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--runner", default="", help="optional simulation launcher command")
     parser.add_argument("--lean", type=Path, required=True,
                         help="absolute path to an already installed Lean 4.19.0 binary")
+    parser.add_argument("--mmio", action="store_true", help="Exercise the bus frontend before host transcript decoding")
     args = parser.parse_args()
     if not args.lean.is_absolute() or not args.lean.is_file() or args.lean.resolve().name == "elan":
         raise ValueError("--lean must be an installed Lean binary, not an installer/shim")
@@ -54,6 +55,7 @@ def main():
         work, work / "params.log")
     simv = work / "simv"
     run([args.vcs, "-full64", "-sverilog", "-timescale=1ns/1ps",
+         *(["+define+IDENTITY_MMIO", ROOT / "rtl/shell_identity_mmio.sv"] if args.mmio else []),
          "+define+PLATFORM_SUPERVISOR_ASSERTIONS", "+incdir+" + str(work),
          "-top", "tb", ROOT / "rtl/platform_supervisor.sv",
          ROOT / "rtl/shell_identity_v1.sv", ROOT / "tests/shell_identity_v1/tb.sv",
