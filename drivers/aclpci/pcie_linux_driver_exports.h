@@ -114,7 +114,8 @@
 
 #define ACLPCI_CMD_DMA_STOP               19
 
-#define ACLPCI_CMD_MAX_CMD                20
+#include "startup_uapi.h"
+#define ACLPCI_CMD_MAX_CMD                21
 
 
 /* Signal from driver to user (hal) to notify about hw interrupt */

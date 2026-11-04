@@ -1425,8 +1425,49 @@ static void test_closure_mmio(void)
     puts("PASS closure transport: 30 boundaries, ten custody losses, sticky errors, protected raw window");
 }
 
+static void test_startup_user_command(void)
+{
+    u32 w[10]={1,1,1,2,3,4,5,6,1,0};
+    struct acl_cmd cmd={.bar_id=ACLPCI_CMD_BAR,.command=ACLPCI_CMD_STARTUP,
+                        .user_addr=w,.size=sizeof w};
+    struct file fd={.private_data=&file};
+    unsigned reads,writes;
+    init_engine(); device.io_blocked=true;
+    reads=test.mmio_reads; writes=test.mmio_writes;
+    assert(aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);
+    cmd.size--;assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);cmd.size++;
+    w[0]=2;assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);w[0]=1;
+    test.fail_copy=true;assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EFAULT);test.fail_copy=false;
+    assert(!device.control_owner);
+    device.dma_data.contract_valid=false;
+    assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EBUSY);
+    assert(!device.control_owner && file.ref.refs==1);
+    device.dma_data.contract_valid=true;
+    assert(!aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL));
+    assert(device.control_owner==&file && file.ref.refs==2);
+    assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EBUSY);
+    assert(reads==test.mmio_reads && writes==test.mmio_writes);
+    memset(w,0,sizeof w);w[0]=1;w[1]=2;
+    assert(aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);
+    w[9]=1;assert(aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL)==-EINVAL);w[9]=0;
+    device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
+    bar4[ACLPCI_PLATFORM_CONTEXT_BASE/4]=0xa10e0001;
+    assert(!aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL));
+    assert(test.mmio_reads==reads+1 && test.mmio_writes==writes && device.control_debt);
+    reads=test.mmio_reads;
+    device.dma_data.contract_valid=false;
+    assert(aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL)==-ESTALE);
+    assert(reads==test.mmio_reads && writes==test.mmio_writes && device.io_blocked);
+    down(&device.sem);assert(aclpci_control_release_unused(&file)==-EBUSY);
+    /* Fixture teardown only; production must retain issued control custody. */
+    device.control_debt=false;assert(!aclpci_control_release_unused(&file));up(&device.sem);
+    assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    puts("PASS userspace startup: framing, direction, copy failure, qualification, custody, no duplicate ARM, revocation");
+}
+
 int main(void)
 {
+    test_startup_user_command();
     test_closure_mmio();
     test_close_publication();
     test_identity_capture_failures();
@@ -1449,6 +1490,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all twenty-two executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all twenty-three executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

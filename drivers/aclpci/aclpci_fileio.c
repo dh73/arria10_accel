@@ -50,6 +50,7 @@
 #endif
 
 #include "platform_control_abi.h"
+#include "startup_uapi.h"
 
 
 static ssize_t aclpci_rw_large (void *dev_addr, void __user* use_addr, ssize_t len, char *buffer, int reading, int access_le);
@@ -592,6 +593,41 @@ static bool protected_write(const struct acl_cmd *cmd, size_t size)
 }
 
 /* High-level read/write dispatcher. */
+/* Called under sem, before raw MMIO and generic commands. Input is copied
+ * completely before custody or MMIO; no copyout can obscure an issued step. */
+static ssize_t aclpci_startup_user(struct aclpci_file *owner,
+                                 const struct acl_cmd *cmd, int reading)
+{
+  struct aclpci_dev *a = owner->aclpci;
+  u32 words[ACLPCI_STARTUP_UAPI_WORDS];
+  unsigned int i;
+  int result;
+  bool claimed = false;
+  if (cmd->size != sizeof(words) || cmd->device_addr || cmd->is_diff_endian)
+    return -EINVAL;
+  if (copy_from_user(words, cmd->user_addr, sizeof(words))) return -EFAULT;
+  if (words[0] != ACLPCI_STARTUP_UAPI_VERSION) return -EINVAL;
+  if (words[1] == ACLPCI_STARTUP_UAPI_STEP) {
+    if (!reading) return -EINVAL;
+    for (i = 2; i < ACLPCI_STARTUP_UAPI_WORDS; ++i)
+      if (words[i]) return -EINVAL;
+    return aclpci_dma_startup_service(a, owner);
+  }
+  if (words[1] != ACLPCI_STARTUP_UAPI_ARM || reading) return -EINVAL;
+  /* A second ARM must not replace even an unissued transaction. */
+  if (a->control_owner == owner && a->control_startup.result == 0)
+    return -EBUSY;
+  if (!a->control_owner) {
+    result = aclpci_control_claim(owner);
+    if (result) return result;
+    claimed = true;
+  }
+  result = aclpci_dma_startup_arm(a, owner, words + 2,
+                                 (u64)words[8] | ((u64)words[9] << 32));
+  if (result && claimed) aclpci_control_release_unused(owner);
+  return result;
+}
+
 static ssize_t aclpci_rw(struct file *file, char __user *buf,
                   size_t count, loff_t *pos,
                   int reading) {
@@ -633,6 +669,10 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
   size = kcmd.size;
   if (kcmd.bar_id == ACLPCI_CMD_BAR) {
+    if (kcmd.command == ACLPCI_CMD_STARTUP) {
+      result = aclpci_startup_user(owner, &kcmd, reading);
+      goto done;
+    }
     /* The legacy payload-setting case is outside the supplied excerpts.
      * Keep it intact, but exclude IRQ snapshots while it updates the pair. */
     bool sync_irq = (kcmd.command == ACLPCI_CMD_SET_SIGNAL_PAYLOAD ||
