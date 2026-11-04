@@ -2,6 +2,7 @@
 #ifndef ACLPCI_STARTUP_H
 #define ACLPCI_STARTUP_H
 #include "aclpci_context_provision.h"
+#include "aclpci_upstream_closure.h"
 #include "aclpci_supervisor_command.h"
 /* First START in an exclusively owned, qualified coordinated-reset lifetime.
  * Caller supplies ordered window-relative MMIO and retains custody on failure.
@@ -9,6 +10,8 @@
  * Serialize every step with removal/reset and control-owner changes. */
 struct aclpci_startup {
     struct aclpci_context_provision provision;
+    /* Owned transport services this after provisioning and before fence. */
+    struct aclpci_upstream_closure closure;
     struct aclpci_round_fence fence;
     struct aclpci_supervisor_command command;
     unsigned int phase;

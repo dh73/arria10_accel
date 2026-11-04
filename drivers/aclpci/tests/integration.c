@@ -1185,22 +1185,26 @@ static void test_kernel_startup_mmio(void)
 {
     const u32 context[6]={1,2,3,4,5,6};
     unsigned mode,boundary,n;
-    for(mode=0;mode<9;++mode)for(boundary=0;boundary<52;++boundary) {
+    for(mode=0;mode<9;++mode)for(boundary=0;boundary<82;++boundary) {
         u32 *p=bar4+ACLPCI_PLATFORM_CONTEXT_BASE/4;
+        u32 *u=bar4+ACLPCI_PLATFORM_CLOSURE_BASE/4;
         u32 *f=bar4+ACLPCI_PLATFORM_FENCE_BASE/4;
         u32 *c=bar4+ACLPCI_PLATFORM_COMMAND_BASE/4;
         unsigned reads,writes;int result=0;
         init_engine();device.io_blocked=true;
         device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
         memset(bar4,0,sizeof bar4);p[0]=0xa10e0001;
+        u[0]=0xa10b0001;u[1]=8;memcpy(u+2,context,sizeof context);u[8]=1;
         f[0]=1;memcpy(f+1,context,sizeof context);f[7]=1;
         down(&device.sem);
         assert(!aclpci_control_claim(&file));
         assert(!aclpci_dma_startup_arm(&device,&file,context,1));
         assert(aclpci_dma_startup_service(&device,NULL)==-EPERM);
-        for(n=0;n<52;++n) {
+        for(n=0;n<82;++n) {
             struct aclpci_startup *s=&device.control_startup;
             if(s->phase==0 && s->provision.step>=10)p[1]=1;
+            if(s->closure.step>=20)u[1]=9;
+            if(s->fence.step)assert(s->closure.result==1);
             if(s->phase==1 && s->fence.step==6)f[0]=3;
             if(s->phase==2 && s->command.step>=8){c[4]=6;c[6]=1;}
             if(n==boundary && mode) {
@@ -1224,7 +1228,7 @@ static void test_kernel_startup_mmio(void)
                 device.bar[2]=bar4;device.pr_in_progress=false;
             }
         }
-        if(!mode)assert(result==1 && p[1]==1 && f[0]==3 && c[3]==0xa10c0001);
+        if(!mode)assert(result==1 && device.control_startup.closure.result==1 && u[10]==0xa10b0001 && p[1]==1 && f[0]==3 && c[3]==0xa10c0001);
         reads=test.mmio_reads;writes=test.mmio_writes;
         assert(aclpci_dma_startup_service(&device,&file)==result);
         assert(test.mmio_reads==reads && test.mmio_writes==writes && device.io_blocked);
@@ -1235,7 +1239,7 @@ static void test_kernel_startup_mmio(void)
         up(&device.sem);
         assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
     }
-    puts("PASS kernel startup MMIO: 52 boundaries, eight revocations, ordered windows, no admission or replay");
+    puts("PASS kernel startup MMIO: 82 boundaries, eight revocations, ordered windows, no admission or replay");
 }
 
 struct identity_capture_fixture { unsigned calls,fail,tear;u32 words[64]; };
