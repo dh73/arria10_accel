@@ -10,6 +10,7 @@ module reference_clock_monitor #(
  localparam int DW=DIV_LOG2>0?DIV_LOG2:1;
  localparam int TW=MAX_TICKS>0?$clog2(MAX_TICKS+2):1;
  localparam int GW=GOOD_INTERVALS>0?$clog2(GOOD_INTERVALS+1):1;
+ generate if(DIV_LOG2>=2 && MIN_TICKS>=2 && MAX_TICKS>MIN_TICKS && GOOD_INTERVALS>=2) begin : g_valid
  logic [DW-1:0] divider;
  (* async_reg="true", preserve *) logic [2:0] heartbeat_sync;
  logic previous, seen;
@@ -48,4 +49,8 @@ module reference_clock_monitor #(
    end
   end
  end
+ end else begin : g_invalid
+  assign qualified=1'b0;
+  assign fault=1'b1;
+ end endgenerate
 endmodule
