@@ -7,6 +7,7 @@
 #include "../aclpci_supervisor_command.c"
 #include "../aclpci_context_provision.c"
 #include "../aclpci_startup.c"
+#include "../aclpci_identity.c"
 #include "../aclpci_dma.c"
 #include "../aclpci_fileio.c"
 
@@ -1236,8 +1237,72 @@ static void test_kernel_startup_mmio(void)
     puts("PASS kernel startup MMIO: 52 boundaries, eight revocations, ordered windows, no admission or replay");
 }
 
+struct identity_capture_fixture { unsigned calls,fail,tear;u32 words[64]; };
+static int identity_capture_read(void *context,unsigned offset,u32 *value)
+{
+    struct identity_capture_fixture *f=context;
+    assert(!(offset&3)&&offset<256);++f->calls;
+    *value=f->words[offset/4];
+    if(f->tear==f->calls)*value+=1;
+    return f->calls==f->fail?-EIO:0;
+}
+static void test_identity_capture_failures(void)
+{
+    unsigned boundary;
+    for(boundary=0;boundary<=72;++boundary) {
+        struct identity_capture_fixture f={.fail=boundary,
+            .words={ACLPCI_ID_MAGIC,ACLPCI_ID_V1,1,256,31,31,7}};
+        struct aclpci_identity_raw raw;
+        assert(aclpci_identity_capture(identity_capture_read,&f,&raw)==
+               (boundary?ACLPCI_ID_IO_FAILURE:ACLPCI_ID_CONSISTENT));
+        assert(f.calls==(boundary?boundary:72));
+    }
+    for(boundary=0;boundary<2;++boundary) {
+        struct identity_capture_fixture f={.tear=boundary?72:14,
+            .words={ACLPCI_ID_MAGIC,ACLPCI_ID_V2,2,256,31,31,7}};
+        struct aclpci_identity_raw raw;
+        assert(aclpci_identity_capture(identity_capture_read,&f,&raw)==ACLPCI_ID_TORN);
+        assert(f.calls==72);
+    }
+    puts("PASS identity capture: 72 failed-read boundaries and torn middle/final sequences, no retry");
+}
+
+static void test_identity_discovery_mmio(void)
+{
+    unsigned mode,reads,writes;
+    for(mode=0;mode<8;++mode) {
+        struct aclpci_identity_raw raw;
+        init_engine();device.io_blocked=true;device.dma_data.contract_valid=false;
+        device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
+        memset(bar4,0,sizeof bar4);
+        bar4[0]=ACLPCI_ID_MAGIC;bar4[1]=ACLPCI_ID_V2;bar4[2]=2;
+        bar4[3]=256;bar4[4]=bar4[5]=31;bar4[6]=7;
+        down(&device.sem);assert(!aclpci_control_claim(&file));
+        if(mode==1)device.removed=true;
+        if(mode==2)device.online=false;
+        if(mode==3)file.closed=true;
+        if(mode==4)device.pr_in_progress=true;
+        if(mode==5)device.io_blocked=false;
+        if(mode==6)device.bar_length[2]=255;
+        if(mode==7)bar4[0]=0;
+        reads=test.mmio_reads;writes=test.mmio_writes;
+        assert(aclpci_control_identity_capture(&file,&raw)==
+            (mode==0?ACLPCI_ID_CONSISTENT:mode==7?ACLPCI_ID_UNSUPPORTED:ACLPCI_ID_IO_FAILURE));
+        assert(test.mmio_reads==reads+(mode==0?72:mode==7?1:0));
+        assert(test.mmio_writes==writes&&!device.control_debt&&!device.dma_data.contract_valid);
+        if(!mode)assert(raw.before==7&&raw.after==7&&raw.words[6]==7);
+        device.removed=false;device.online=true;file.closed=false;device.pr_in_progress=false;
+        device.io_blocked=true;device.bar_length[2]=sizeof bar4;
+        assert(!aclpci_control_release_unused(&file));up(&device.sem);
+        assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    }
+    puts("PASS identity discovery: owned bounded read-only BAR2 capture without DMA admission");
+}
+
 int main(void)
 {
+    test_identity_capture_failures();
+    test_identity_discovery_mmio();
     test_kernel_startup_mmio();
     test_fence_custody_loss();
     test_kernel_supervisor_mmio();
@@ -1255,6 +1320,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all seventeen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all nineteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

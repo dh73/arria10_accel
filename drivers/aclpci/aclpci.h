@@ -39,6 +39,7 @@
 #ifndef ACLPCI_H
 #define ACLPCI_H
 #include "aclpci_startup.h"
+#include "aclpci_identity.h"
 
 
 #include <linux/semaphore.h>
@@ -260,6 +261,9 @@ void aclpci_set_signal_task(struct aclpci_dev *aclpci, struct task_struct *task)
  * operation. Only never-issued custody can be released; no reset-safe debt
  * discharge contract is supplied yet. */
 int aclpci_control_claim(struct aclpci_file *owner);
+/* Internal read-only discovery under sem and retained control ownership.
+ * Does not require or set DMA contract_valid. No device admission implied. */
+enum aclpci_identity_code aclpci_control_identity_capture(struct aclpci_file *, struct aclpci_identity_raw *);
 int aclpci_control_mark_issued(struct aclpci_file *owner);
 int aclpci_control_release_unused(struct aclpci_file *owner);
 void aclpci_file_get(struct aclpci_file *owner);

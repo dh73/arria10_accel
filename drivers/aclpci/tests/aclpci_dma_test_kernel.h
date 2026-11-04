@@ -80,6 +80,7 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 #include "../aclpci_startup.h"
+#include "../aclpci_identity.h"
 typedef uint32_t __le32;
 typedef uint64_t __le64;
 typedef uint64_t dma_addr_t;

@@ -5,6 +5,34 @@
 #else
 #include <string.h>
 #endif
+enum aclpci_identity_code aclpci_identity_capture(
+    int (*read)(void *, unsigned int, aclpci_id_u32 *), void *context,
+    struct aclpci_identity_raw *raw)
+{
+    const aclpci_id_u32 prefix[6] = {ACLPCI_ID_MAGIC, ACLPCI_ID_V1, 1,
+        ACLPCI_ID_BYTES, ACLPCI_ID_CAPABILITIES, ACLPCI_ID_CAPABILITIES};
+    aclpci_id_u32 value = 0, version = 0;
+    unsigned int i;
+    if (!raw) return ACLPCI_ID_INVALID;
+    memset(raw, 0, sizeof(*raw));
+    if (!read) return ACLPCI_ID_IO_FAILURE;
+    for (i = 0; i < 6; ++i) {
+        if (read(context, 4*i, &value)) return ACLPCI_ID_IO_FAILURE;
+        if (i == 1) {
+            if (value != ACLPCI_ID_V1 && value != ACLPCI_ID_V2) return ACLPCI_ID_UNSUPPORTED;
+            version = value;
+        } else if (value != (i == 2 ? version >> 16 : prefix[i]))
+            return ACLPCI_ID_UNSUPPORTED;
+    }
+    if (read(context, 24, &raw->before)) return ACLPCI_ID_IO_FAILURE;
+    if (!raw->before) return ACLPCI_ID_INVALID;
+    for (i = 0; i < ACLPCI_ID_WORDS; ++i)
+        if (read(context, 4*i, &raw->words[i])) return ACLPCI_ID_IO_FAILURE;
+    if (read(context, 24, &raw->after)) return ACLPCI_ID_IO_FAILURE;
+    return raw->before == raw->after && raw->before == raw->words[6]
+        ? ACLPCI_ID_CONSISTENT : ACLPCI_ID_TORN;
+}
+
 static aclpci_id_u64 word64(const struct aclpci_identity_raw *r, unsigned int n)
 {
     return r->words[n] | ((aclpci_id_u64)r->words[n + 1] << 32);

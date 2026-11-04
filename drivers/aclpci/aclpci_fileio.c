@@ -49,6 +49,8 @@
 #include "aclpci.h"
 #endif
 
+#include "platform_control_abi.h"
+
 
 static ssize_t aclpci_rw_large (void *dev_addr, void __user* use_addr, ssize_t len, char *buffer, int reading, int access_le);
 
@@ -163,6 +165,28 @@ int aclpci_control_claim(struct aclpci_file *owner)
   }
   mutex_unlock(&a->dma_data.lock);
   return result;
+}
+
+static int identity_mmio_read(void *context, unsigned int offset, aclpci_id_u32 *value)
+{
+  struct aclpci_file *owner = context;
+  struct aclpci_dev *a = owner->aclpci;
+  if (owner->closed || !a->online || a->removed || a->pr_in_progress) return -ENODEV;
+  if (a->control_owner != owner || !a->io_blocked) return -EPERM;
+  if ((offset & 3) || offset >= ACLPCI_ID_BYTES ||
+      !a->bar[ACLPCI_PLATFORM_CONTROL_BAR] ||
+      a->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] < ACLPCI_ID_BYTES) return -ERANGE;
+  *value = ioread32(a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + offset);
+  return 0;
+}
+enum aclpci_identity_code aclpci_control_identity_capture(struct aclpci_file *owner,
+                                                         struct aclpci_identity_raw *raw)
+{
+  if (!owner) {
+    if (raw) memset(raw, 0, sizeof(*raw));
+    return ACLPCI_ID_IO_FAILURE;
+  }
+  return aclpci_identity_capture(identity_mmio_read, owner, raw);
 }
 
 int aclpci_control_mark_issued(struct aclpci_file *owner)
@@ -508,7 +532,6 @@ static bool overlaps(unsigned long offset, size_t bytes,
          (offset >= start || bytes > start - offset);
 }
 
-#include "platform_control_abi.h"
 
 static bool protected_write(const struct acl_cmd *cmd, size_t size)
 {

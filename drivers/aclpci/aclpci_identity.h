@@ -55,6 +55,13 @@ struct aclpci_identity_observation {
     aclpci_id_u32 sequence;
     struct aclpci_identity_health health;
 };
+/* One bounded read-only capture: six discovery reads, sequence, 64 words,
+ * sequence. No retry after a torn snapshot or failed read. Caller serializes
+ * image/mapping lifetime and uses ordered reads from the fixed identity block.
+ * CONSISTENT here means stable capture only; call check for ABI/identity. */
+enum aclpci_identity_code aclpci_identity_capture(
+    int (*read)(void *, unsigned int, aclpci_id_u32 *), void *context,
+    struct aclpci_identity_raw *);
 /* Pure decode of already captured CPU-endian words. No MMIO, retries, memory
  * allocation, ownership/admission mutation or drain certification. Resources
  * are explicit trusted declarations. Even CONSISTENT is self-reported identity;
