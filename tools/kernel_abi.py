@@ -14,6 +14,8 @@ import xml.etree.ElementTree as ET
 # Vector qualification: qualification/kernel-launch-custody-v1/corrected2.
 # This identifies source accounting only, never a device/transport capability.
 SNAPSHOT_RETIREMENT_SHA256 = {
+    'a10_streaming_unrolled_Copy': 'db57fa571f57f0aa2bd0d98f5eee3168099a1c107666a26001ac8ab1376bf212',
+    'a10_streaming_unrolled_Triad': 'bc3c60577b3a8d44a0c1e97d63267b35f0c9eb1a938fe4260bbc641bd896176c',
     'stream_copy512': '69a0e196e0137b7c83232178cde4d0a40e294c6f87bfcff8b452e4ab6ebb6407',
     'stream_triad512': 'b68329a2df74165713acb080692e2bfcbceed411242bfe8b88283a04698183ea',
     'a10_streaming_Copy': '813cfa3c23f5dd12153a739d797ed6269cb0d011399e1dee2200fb11b1af7d28',
