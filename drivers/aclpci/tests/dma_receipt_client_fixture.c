@@ -47,3 +47,13 @@ long receipt_fixture_write(void *cmd, unsigned long bytes) {
     if (device.dma_data.active) assert(!aclpci_poll(&client_fd,NULL));
     return result;
 }
+
+/* Read-only identity fixture for the real command path, with DMA disabled. */
+void receipt_fixture_identity(void) {
+    u32 *identity=bar4+ACLPCI_PLATFORM_IDENTITY_BASE/4;
+    device.io_blocked=true;device.dma_data.contract_valid=false;
+    device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
+    memset(bar4,0,sizeof bar4);
+    identity[0]=ACLPCI_ID_MAGIC;identity[1]=ACLPCI_ID_V2;identity[2]=2;
+    identity[3]=256;identity[4]=identity[5]=31;identity[6]=7;
+}

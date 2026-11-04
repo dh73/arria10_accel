@@ -1313,6 +1313,39 @@ static void test_identity_discovery_mmio(void)
     puts("PASS identity discovery: owned bounded read-only BAR2 capture without DMA admission");
 }
 
+static void test_identity_snapshot_uapi(void)
+{
+    unsigned mode;
+    for (mode=0; mode<6; ++mode) {
+        u32 words[ACLPCI_IDENTITY_UAPI_WORDS]={ACLPCI_IDENTITY_UAPI_VERSION};
+        struct file fd={.private_data=&file};
+        struct acl_cmd cmd={.bar_id=ACLPCI_CMD_BAR,.command=ACLPCI_CMD_IDENTITY_SNAPSHOT,
+                           .user_addr=words,.size=sizeof words};
+        u32 *identity=bar4+ACLPCI_PLATFORM_IDENTITY_BASE/4;
+        unsigned writes,reads;
+        long result;
+        init_engine();device.io_blocked=true;device.dma_data.contract_valid=false;
+        device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;memset(bar4,0,sizeof bar4);
+        identity[0]=ACLPCI_ID_MAGIC;identity[1]=ACLPCI_ID_V2;identity[2]=2;
+        identity[3]=256;identity[4]=identity[5]=31;identity[6]=7;
+        if(mode==1)words[2]=1;
+        if(mode==2)cmd.is_diff_endian=1;
+        if(mode==3)cmd.size-=4;
+        if(mode==4)identity[0]=0;
+        reads=test.mmio_reads;writes=test.mmio_writes;
+        result=mode==5?aclpci_write(&fd,(char *)&cmd,sizeof cmd,NULL):
+                       aclpci_read(&fd,(char *)&cmd,sizeof cmd,NULL);
+        assert(result==(mode==0?0:mode==4?-EIO:-EINVAL));
+        assert(test.mmio_writes==writes&&!device.control_owner&&!device.control_debt);
+        assert(!device.dma_data.contract_valid&&device.io_blocked);
+        assert(test.mmio_reads==reads+(mode==0?72:mode==4?1:0));
+        if(!mode)assert(words[2]==7&&words[3]==ACLPCI_ID_MAGIC&&words[67]==7);
+        if(mode==4)assert(words[2]==0&&words[3]==0&&words[67]==0);
+        assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    }
+    puts("PASS identity snapshot UAPI: bounded capture, framing, temporary custody, no writes or admission");
+}
+
 static void test_identity_checked_mmio(void)
 {
     unsigned mode;
@@ -1535,6 +1568,7 @@ int main(void)
     test_identity_capture_failures();
     test_identity_discovery_mmio();
     test_identity_checked_mmio();
+    test_identity_snapshot_uapi();
     test_kernel_startup_mmio();
     test_fence_custody_loss();
     test_kernel_supervisor_mmio();

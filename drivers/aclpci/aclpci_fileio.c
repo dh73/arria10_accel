@@ -643,6 +643,38 @@ static ssize_t aclpci_dma_receipt_user(struct aclpci_file *owner,
   return copy_to_user(cmd->user_addr, words, sizeof(words)) ? -EFAULT : 0;
 }
 
+static ssize_t aclpci_identity_snapshot_user(struct aclpci_file *owner,
+                                           const struct acl_cmd *cmd, int reading)
+{
+  u32 words[ACLPCI_IDENTITY_UAPI_WORDS];
+  struct aclpci_identity_raw raw;
+  enum aclpci_identity_code code;
+  unsigned int i;
+  int result;
+  bool claimed = false;
+  if (!reading || cmd->size != sizeof(words) || cmd->device_addr || cmd->is_diff_endian)
+    return -EINVAL;
+  if (copy_from_user(words, cmd->user_addr, sizeof(words))) return -EFAULT;
+  if (words[0] != ACLPCI_IDENTITY_UAPI_VERSION) return -EINVAL;
+  for (i = 1; i < ACLPCI_IDENTITY_UAPI_WORDS; ++i)
+    if (words[i]) return -EINVAL;
+  if (!owner->aclpci->control_owner) {
+    result = aclpci_control_claim(owner);
+    if (result) return result;
+    claimed = true;
+  }
+  code = aclpci_control_identity_capture(owner, &raw);
+  if (claimed) {
+    result = aclpci_control_release_unused(owner);
+    if (result) return result;
+  }
+  if (code != ACLPCI_ID_CONSISTENT) return -EIO;
+  words[2] = raw.before;
+  for (i = 0; i < ACLPCI_ID_WORDS; ++i) words[3+i] = raw.words[i];
+  words[67] = raw.after;
+  return copy_to_user(cmd->user_addr, words, sizeof(words)) ? -EFAULT : 0;
+}
+
 static ssize_t aclpci_startup_user(struct aclpci_file *owner,
                                  const struct acl_cmd *cmd, int reading)
 {
@@ -717,6 +749,10 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
   }
   size = kcmd.size;
   if (kcmd.bar_id == ACLPCI_CMD_BAR) {
+    if (kcmd.command == ACLPCI_CMD_IDENTITY_SNAPSHOT) {
+      result = aclpci_identity_snapshot_user(owner, &kcmd, reading);
+      goto done;
+    }
     if (kcmd.command == ACLPCI_CMD_DMA_SUBMIT) {
       if (kcmd.is_diff_endian || !size || size > (SIZE_MAX >> 1)) {
         result = -EINVAL;

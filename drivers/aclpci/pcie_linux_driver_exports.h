@@ -48,6 +48,7 @@
 
 #ifndef PCIE_LINUX_DRIVER_EXPORTS_H
 #define PCIE_LINUX_DRIVER_EXPORTS_H
+#include "identity_uapi.h"
 
 
 /* if bar_id in acl_cmd is set to this, this is a special command,
@@ -116,7 +117,7 @@
 
 #include "startup_uapi.h"
 #include "dma_receipt_uapi.h"
-#define ACLPCI_CMD_MAX_CMD                23
+#define ACLPCI_CMD_MAX_CMD                24
 
 
 /* Signal from driver to user (hal) to notify about hw interrupt */

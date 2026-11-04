@@ -288,3 +288,7 @@ target_compile_options(a10_dma_events PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_executable(a10_dma_events_test tests/aclpci_dma_events_test.cpp)
 target_link_libraries(a10_dma_events_test PRIVATE a10_dma_events Threads::Threads)
 add_test(NAME a10_dma_events COMMAND a10_dma_events_test)
+
+add_library(a10_identity_snapshot STATIC src/aclpci_identity_snapshot.cpp)
+target_include_directories(a10_identity_snapshot PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+target_compile_options(a10_identity_snapshot PRIVATE -Wall -Wextra -Wpedantic -Werror)
