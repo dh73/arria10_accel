@@ -6,6 +6,7 @@ p.add_argument('--base',type=Path,required=True)
 p.add_argument('--shell',type=Path,required=True)
 p.add_argument('--hip',type=Path,required=True)
 p.add_argument('--out',type=Path,required=True)
+p.add_argument('--include-pins',type=Path,required=True)
 a=p.parse_args();base=a.base.resolve();shell=a.shell.resolve();hip=a.hip.resolve();out=a.out.resolve()
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 pins=json.loads((base/'sources.json').read_text())
@@ -38,10 +39,22 @@ lines=['set_global_assignment -name FAMILY {Arria 10}',
  'set_global_assignment -name TOP_LEVEL_ENTITY platform_c126_hardware_io',
  'source {'+str(Path(next(f for f in binding['files'] if f.endswith('board_constraints.qsf'))))+'}',
  'set_global_assignment -name QIP_FILE {'+str(out/'hip.qip')+'}']
+include_dir=Path(route['include']).resolve()
+include_pins=json.loads(a.include_pins.read_text())
+lines.append('set_global_assignment -name SEARCH_PATH {'+str(include_dir)+'}')
+for f in include_dir.glob('*.svh'):
+ assert str(f) in include_pins and sha(f)==include_pins[str(f)],f
+ dependencies[str(f)]=sha(f)
 for entry in route['extra']:
  if entry.startswith('+incdir+'):
   lines.append('set_global_assignment -name SEARCH_PATH {'+entry[len('+incdir+'):]+'}');continue
  f=Path(entry);assert str(f) in pins
+ if f.name=='shell_identity_v2.sv':
+  original=f.read_text()
+  fixed,count=re.subn(r'(?m)^(  input  )logic',r'\1wire logic',original)
+  assert count==14
+  dependencies[str(f)]=sha(f)
+  f=out/f.name;f.write_text(fixed)
  kind={'.sv':'SYSTEMVERILOG_FILE','.v':'VERILOG_FILE'}[f.suffix]
  lines.append('set_global_assignment -name '+kind+' {'+str(f)+'}');dependencies[str(f)]=sha(f)
 for name in ('platform_c126_hardware_io.sv','c126_reset_release.sv'):
