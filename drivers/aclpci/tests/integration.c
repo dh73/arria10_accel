@@ -3,6 +3,7 @@
 #include "../aclpci_user_dma.c"
 #include "../aclpci_dma_batch.c"
 #include "../aclpci_dma_request.c"
+#include "../aclpci_round_fence.c"
 #include "../aclpci_dma.c"
 #include "../aclpci_fileio.c"
 
@@ -360,8 +361,63 @@ static void init_engine(void)
     device.dma_data.contract_valid = true;
     device.dma_data.device_memory_bytes = 1ULL << 31;
 }
+/* Protocol fixture only: actual C sequencer guards real driver table free. */
+struct retirement_model { u32 words[8]; unsigned mask, commits; };
+static int retirement_read(void *ctx, unsigned offset, u32 *value)
+{
+    struct retirement_model *m = ctx;
+    assert(offset <= 32 && !(offset & 3));
+    *value = offset ? m->words[(offset-4)/4] : m->commits ? 3 : 1;
+    return 0;
+}
+static int retirement_write(void *ctx, unsigned offset, u32 value)
+{
+    struct retirement_model *m = ctx;
+    if (offset == 36) {
+        assert(value == 0xa10f0001 && m->mask == 255);
+        m->commits++;
+    } else {
+        assert(offset >= 4 && offset <= 32 && !(offset & 3));
+        assert(value == m->words[(offset-4)/4]);
+        m->mask |= 1u << ((offset-4)/4);
+    }
+    return 0;
+}
+static int retirement_flush(void *ctx) { (void)ctx; return 0; }
+static void settle_engine(void)
+{
+    struct retirement_model m = { .words={1,2,3,4,5,6,1,0} };
+    struct aclpci_fence_io io = { &m, retirement_read, retirement_write, retirement_flush };
+    unsigned n, coherent = test.coherent_live;
+    assert(aclpci_dma_finish(&device) == -EBUSY);
+    assert(test.coherent_live == coherent && device.dma_data.initialized);
+    device.io_blocked = true;
+    assert(!aclpci_dma_fence_arm(&device, m.words, 1));
+    assert(aclpci_dma_fence_arm(&device, m.words, 1) == -EBUSY);
+    for (n=0;n<20;n++) {
+        assert(!aclpci_dma_fence_step(&device, &io));
+        assert(aclpci_dma_finish(&device) == -EBUSY);
+        assert(test.coherent_live == coherent);
+    }
+    assert(aclpci_dma_fence_step(&device, &io) == 1);
+    assert(m.commits == 1);
+    /* A settled protocol is insufficient after ownership/context revocation. */
+    device.io_blocked = false;
+    assert(aclpci_dma_finish(&device) == -EBUSY);
+    device.io_blocked = true;
+    --device.dma_data.fence_generation;
+    assert(aclpci_dma_finish(&device) == -EBUSY);
+    assert(aclpci_dma_fence_step(&device, &io) == -EBUSY);
+    ++device.dma_data.fence_generation; /* restore fixture, no production API */
+    device.dma_data.contract_valid = false;
+    assert(aclpci_dma_finish(&device) == -EBUSY);
+    assert(aclpci_dma_fence_step(&device, &io) == -EBUSY);
+    device.dma_data.contract_valid = true;
+    assert(test.coherent_live == coherent && m.commits == 1);
+}
 static void finish_engine(void)
 {
+    if (device.dma_data.publication_generation) settle_engine();
     assert(!aclpci_dma_finish(&device));
     released_mapping();
     assert(!test.live_allocs && !test.coherent_live);
@@ -671,7 +727,20 @@ static void destroy_quarantined_mock(void)
     d->task = NULL;
     d->owner = NULL;
     d->active = false;
-    finish_engine();
+    /* Faulted production custody still refuses both fence admission and free. */
+    device.io_blocked = true;
+    {
+        const u32 context[6] = {1,2,3,4,5,6};
+        unsigned i;
+        assert(aclpci_dma_fence_arm(&device, context, 1) == -EBUSY);
+        assert(aclpci_dma_finish(&device) == -EBUSY);
+        destroy_workqueue(d->wq);
+        for (i=0;i<2;i++)
+            dma_free_coherent(&device.pci_dev->dev, sizeof(*d->tables[i]),
+                              d->tables[i], d->table_dma[i]);
+        d->initialized = false;
+        assert(!test.live_allocs && !test.coherent_live);
+    }
 }
 static void test_engine_bad_status_and_bounds(void)
 {

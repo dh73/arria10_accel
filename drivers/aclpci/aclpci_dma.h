@@ -40,6 +40,7 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #include "aclpci_dma_request.h"
+#include "aclpci_round_fence.h"
 
 struct aclpci_dev;
 struct aclpci_file;
@@ -64,6 +65,12 @@ struct aclpci_dma {
     struct task_struct *task;
     struct kernel_siginfo signal;
     u64 ticket;
+    /* Coherent descriptor tables outlive individual requests. A successful
+     * request status does not authorize destroying these shared resources. */
+    u64 publication_generation, fence_generation;
+    struct aclpci_round_fence retirement_fence;
+    bool fence_started;
+
     /* Qualified image's zero-based byte aperture. Zero denies all transfers.
      * Set only while admission is closed and no request is active, holding
      * the device sem then the DMA lock (PIO also uses the device sem).
@@ -79,4 +86,9 @@ struct aclpci_dma {
     bool contract_valid;
 };
 
+/* Internal qualified-shell calls, not UAPI. Caller holds the device sem,
+ * closes submission, and supplies immutable kernel-owned context/round plus
+ * ordered same-function MMIO. No function below enables admission. */
+int aclpci_dma_fence_arm(struct aclpci_dev *, const u32 context[6], u64 round);
+int aclpci_dma_fence_step(struct aclpci_dev *, const struct aclpci_fence_io *);
 #endif

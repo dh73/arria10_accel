@@ -157,12 +157,17 @@ static int submit_locked(struct aclpci_dma *d)
 
     if (r->first_id >= 128 || !r->count || r->count > 128 - r->first_id)
         return -EINVAL;
+    if (d->publication_generation == ~(u64)0)
+        return -EOVERFLOW;
     /* Reserve ownership before the first MMIO write. An ambiguous doorbell
      * remains IN_FLIGHT. This path never retries the table. */
     error = aclpci_dma_request_submit(r, &d->ticket);
     if (error)
         return error;
     d->active = true;
+    ++d->publication_generation;
+    d->fence_started = false;
+    d->fence_generation = 0;
     d->last_id[direction] = last;
     dma_wmb();
     if (direction) {
@@ -290,6 +295,14 @@ int aclpci_dma_finish(struct aclpci_dev *aclpci)
         mutex_unlock(&d->lock);
         return -EBUSY;
     }
+    if (d->publication_generation &&
+        (!READ_ONCE(aclpci->io_blocked) || !d->contract_valid || d->fault ||
+         !d->fence_started ||
+         d->retirement_fence.result != 1 ||
+         d->fence_generation != d->publication_generation)) {
+        mutex_unlock(&d->lock);
+        return -EBUSY;
+    }
     d->initialized = false;
     mutex_unlock(&d->lock);
     destroy_workqueue(d->wq);
@@ -300,6 +313,41 @@ int aclpci_dma_finish(struct aclpci_dev *aclpci)
         d->tables[i] = NULL;
     }
     return 0;
+}
+
+int aclpci_dma_fence_arm(struct aclpci_dev *aclpci, const u32 context[6], u64 round)
+{
+    struct aclpci_dma *d = &aclpci->dma_data;
+    int result;
+    if (!d->initialized) return -ENODEV;
+    mutex_lock(&d->lock);
+    if (!READ_ONCE(aclpci->io_blocked) || d->active || !d->contract_valid ||
+        d->fault || d->fence_started) {
+        result = -EBUSY;
+    } else {
+        d->fence_started = true;
+        d->fence_generation = d->publication_generation;
+        result = aclpci_round_fence_init(&d->retirement_fence, context, round);
+    }
+    mutex_unlock(&d->lock);
+    return result;
+}
+
+int aclpci_dma_fence_step(struct aclpci_dev *aclpci, const struct aclpci_fence_io *io)
+{
+    struct aclpci_dma *d = &aclpci->dma_data;
+    int result;
+    if (!d->initialized) return -ENODEV;
+    mutex_lock(&d->lock);
+    if (!READ_ONCE(aclpci->io_blocked) || d->active || !d->fence_started ||
+        d->fence_generation != d->publication_generation ||
+        !d->contract_valid || d->fault) {
+        result = -EBUSY;
+    } else {
+        result = aclpci_round_fence_step(&d->retirement_fence, io);
+    }
+    mutex_unlock(&d->lock);
+    return result;
 }
 
 int aclpci_dma_stop(struct aclpci_dev *aclpci)
