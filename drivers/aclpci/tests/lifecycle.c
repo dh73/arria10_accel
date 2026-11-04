@@ -168,6 +168,18 @@ static void retained_remove(bool control_debt)
     a->dma_data.active = !control_debt;
     a->control_debt = control_debt;
     a->control_startup.result = control_debt ? 1 : 0;
+    {
+        unsigned before=writes;
+        assert(aclpci_driver.err_handler == &aclpci_error_handlers);
+        if(control_debt)
+            aclpci_driver.err_handler->reset_prepare(&p);
+        else
+            assert(aclpci_driver.err_handler->error_detected(&p, pci_channel_io_frozen)
+                   == PCI_ERS_RESULT_DISCONNECT);
+        assert(!a->online && a->io_blocked && !a->dma_data.contract_valid);
+        assert(a->control_startup.result == -ESTALE && writes==before);
+        assert(a->control_debt == control_debt && a->dma_data.active == !control_debt);
+    }
     module_refs = 1; /* The request's independent file context module pin. */
     order_count = 0;
     order[0] = 0;

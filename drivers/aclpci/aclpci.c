@@ -52,6 +52,13 @@ MODULE_LICENSE("GPL");
 
 static int probe(struct pci_dev *dev, const struct pci_device_id *id);
 static void remove(struct pci_dev *dev);
+static void aclpci_reset_prepare(struct pci_dev *dev);
+static pci_ers_result_t aclpci_error_detected(struct pci_dev *dev,
+                                             enum pci_channel_state state);
+static const struct pci_error_handlers aclpci_error_handlers = {
+  .error_detected = aclpci_error_detected,
+  .reset_prepare = aclpci_reset_prepare,
+};
 
 /* The historical match is intentionally unchanged. In particular the unknown
  * 1172:2494 / 1172:a151 image does NOT match this driver. */
@@ -68,6 +75,7 @@ static struct pci_driver aclpci_driver = {
   .id_table = aclpci_ids,
   .probe = probe,
   .remove = remove,
+  .err_handler = &aclpci_error_handlers,
   /* This prevents ordinary sysfs unbind, not hot removal or core teardown. */
   .driver = { .suppress_bind_attrs = true },
 };
@@ -500,6 +508,28 @@ disable:
 put:
   aclpci_put(a);
   return error;
+}
+
+static void aclpci_reset_prepare(struct pci_dev *dev)
+{
+  struct aclpci_dev *a = pci_get_drvdata(dev);
+  if (!a) return;
+  down(&a->sem);
+  WRITE_ONCE(a->online, false);
+  WRITE_ONCE(a->io_blocked, true);
+  aclpci_startup_revoke(&a->control_startup);
+  aclpci_dma_revoke(a);
+  up(&a->sem);
+  /* No automatic re-admission after reset. The image, context and outstanding
+   * host writes require requalification; reset itself proves no DMA drain. */
+}
+
+static pci_ers_result_t aclpci_error_detected(struct pci_dev *dev,
+                                             enum pci_channel_state state)
+{
+  (void)state;
+  aclpci_reset_prepare(dev);
+  return PCI_ERS_RESULT_DISCONNECT;
 }
 
 static void remove(struct pci_dev *dev)

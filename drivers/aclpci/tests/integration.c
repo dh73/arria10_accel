@@ -743,6 +743,26 @@ static void destroy_quarantined_mock(void)
         assert(!test.live_allocs && !test.coherent_live);
     }
 }
+static void test_engine_reset_revoke(void)
+{
+    unsigned writes, reads;
+    init_engine();
+    assert(!aclpci_dma_rw(&device, &file, (void *)0x200000, (void *)0x100000, 4096, 1));
+    writes=test.mmio_writes; reads=test.mmio_reads;
+    aclpci_dma_revoke(&device);
+    assert(device.dma_data.active && device.dma_data.fault == -ESTALE);
+    assert(!device.dma_data.contract_valid);
+    write_completion(1); /* Old success cannot retire across reset/error. */
+    aclpci_dma_service_interrupt(&device);
+    run_work();
+    assert(aclpci_dma_stop(&device)==-EINPROGRESS);
+    aclpci_dma_revoke(&device);
+    assert(test.mmio_writes==writes && test.mmio_reads==reads);
+    assert(!test.rmbs && !test.unmaps && !test.signal_count);
+    assert(aclpci_dma_get_idle_status(&device)==-ESTALE);
+    destroy_quarantined_mock();
+    puts("PASS reset revocation: late success retains DMA custody, no MMIO or retirement");
+}
 static void test_engine_bad_status_and_bounds(void)
 {
     struct aclpci_dma *d;
@@ -1173,9 +1193,10 @@ int main(void)
     test_engine_running_worker_irq();
     test_engine_stop_retention();
     test_engine_bad_status_and_bounds();
+    test_engine_reset_revoke();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all fifteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all sixteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

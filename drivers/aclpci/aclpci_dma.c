@@ -465,6 +465,19 @@ int aclpci_dma_supervisor_service(struct aclpci_dev *aclpci,
     return result;
 }
 
+/* Reset/error notification is not a drain certificate. No MMIO or harvesting:
+ * late status bytes cannot discharge a ticket from the invalidated lifetime. */
+void aclpci_dma_revoke(struct aclpci_dev *aclpci)
+{
+    struct aclpci_dma *d = &aclpci->dma_data;
+    WRITE_ONCE(d->contract_valid, false);
+    if (!d->initialized) return;
+    mutex_lock(&d->lock);
+    if (!d->fault) d->fault = -ESTALE;
+    if (d->active) aclpci_dma_request_stop(&d->request);
+    mutex_unlock(&d->lock);
+}
+
 int aclpci_dma_stop(struct aclpci_dev *aclpci)
 {
     struct aclpci_dma *d = &aclpci->dma_data;

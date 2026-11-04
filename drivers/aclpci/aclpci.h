@@ -274,6 +274,7 @@ void mask_kernel_irq(struct aclpci_dev *aclpci);
 int aclpci_dma_init(struct aclpci_dev *aclpci);
 int aclpci_dma_finish(struct aclpci_dev *aclpci);
 int aclpci_dma_stop(struct aclpci_dev *aclpci);
+void aclpci_dma_revoke(struct aclpci_dev *aclpci);
 bool aclpci_dma_busy(struct aclpci_dev *aclpci);
 int aclpci_dma_get_idle_status(struct aclpci_dev *aclpci);
 ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,

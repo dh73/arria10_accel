@@ -108,11 +108,19 @@ struct file_operations {
 struct kobject { int unused; };
 struct cdev { struct kobject kobj; void *owner; const struct file_operations *ops; };
 struct pci_device_id { unsigned int vendor, device, class, class_mask, subvendor, subdevice; };
+typedef int pci_ers_result_t;
+enum pci_channel_state { pci_channel_io_normal, pci_channel_io_frozen, pci_channel_io_perm_failure };
+#define PCI_ERS_RESULT_DISCONNECT 4
+struct pci_error_handlers {
+    pci_ers_result_t (*error_detected)(struct pci_dev *, enum pci_channel_state);
+    void (*reset_prepare)(struct pci_dev *);
+};
 struct pci_driver {
     const char *name;
     const struct pci_device_id *id_table;
     int (*probe)(struct pci_dev *, const struct pci_device_id *);
     void (*driver_remove)(struct pci_dev *);
+    const struct pci_error_handlers *err_handler;
     struct { bool suppress_bind_attrs; } driver;
 };
 struct aclpci_dma { bool contract_valid, initialized, active; void *wq, *tables[2]; };
@@ -240,6 +248,7 @@ static int aclpci_open(struct inode *i,struct file *f) { (void)i;(void)f; return
 static int aclpci_close(struct inode *i,struct file *f) { (void)i;(void)f; return 0; }
 static int aclpci_dma_init(struct aclpci_dev *a) { if(injected==FAIL_DMA) return -ENOMEM; a->dma_data.initialized=true; a->dma_data.wq=(void *)1; a->dma_data.tables[0]=(void *)1; a->dma_data.tables[1]=(void *)1; a->dma_data.contract_valid=test_contract; dma_objects+=3; return 0; }
 static int aclpci_dma_stop(struct aclpci_dev *a) { assert(!a->sem.count); event('T'); return a->dma_data.active ? -EINPROGRESS : 0; }
+static void aclpci_dma_revoke(struct aclpci_dev *a) { assert(!a->sem.count); a->dma_data.contract_valid=false; event('V'); }
 static int aclpci_dma_finish(struct aclpci_dev *a) {
     assert(!irq_requested && a->sem.count); event('D');
     if(a->dma_data.active) return -EBUSY;
