@@ -7,6 +7,7 @@
 #include "../aclpci_supervisor_command.c"
 #include "../aclpci_context_provision.c"
 #include "../aclpci_startup.c"
+#include "../aclpci_upstream_closure.c"
 #include "../aclpci_identity.c"
 #include "../aclpci_dma.c"
 #include "../aclpci_fileio.c"
@@ -970,10 +971,10 @@ static void test_file_after_unbind_and_protected_io(void)
     /* Every byte of the lifecycle/context windows is kernel-owned, including
      * partial writes crossing their start/end. Adjacent ports are untouched. */
     command.bar_id = ACLPCI_PLATFORM_CONTROL_BAR;
-    for (i = 0; i < 3; ++i) {
-        unsigned long start = i == 2 ? ACLPCI_PLATFORM_CONTEXT_BASE :
+    for (i = 0; i < 4; ++i) {
+        unsigned long start = i == 3 ? ACLPCI_PLATFORM_CLOSURE_BASE : i == 2 ? ACLPCI_PLATFORM_CONTEXT_BASE :
             i ? ACLPCI_PLATFORM_COMMAND_BASE : ACLPCI_PLATFORM_FENCE_BASE;
-        unsigned int length = i == 2 ? ACLPCI_PLATFORM_CONTEXT_BYTES :
+        unsigned int length = i == 3 ? ACLPCI_PLATFORM_CLOSURE_BYTES : i == 2 ? ACLPCI_PLATFORM_CONTEXT_BYTES :
             i ? ACLPCI_PLATFORM_COMMAND_BYTES : ACLPCI_PLATFORM_FENCE_BYTES;
         unsigned int byte;
         for (byte = 0; byte < length; ++byte) {
@@ -1335,8 +1336,57 @@ static void test_close_publication(void)
     puts("PASS publication closure: queued continuation cannot submit, active mapping retained until retirement, no MMIO closure claim");
 }
 
+static void test_closure_mmio(void)
+{
+    const u32 context[6]={9,0xfedcba98,1,2,3,4};unsigned mode,boundary,n;
+    for(mode=0;mode<11;++mode)for(boundary=0;boundary<30;++boundary) {
+        struct aclpci_upstream_closure c;u64 generation;
+        u32 *w=bar4+ACLPCI_PLATFORM_CLOSURE_BASE/4;
+        int result=0;unsigned reads,writes;
+        init_engine();device.io_blocked=true;device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
+        memset(w,0,ACLPCI_PLATFORM_CLOSURE_BYTES);w[0]=0xa10b0001;w[1]=8;
+        memcpy(w+2,context,sizeof context);w[8]=1;
+        down(&device.sem);assert(!aclpci_control_claim(&file));
+        assert(!aclpci_dma_close_publication(&device,&file,&generation));
+        assert(!aclpci_upstream_closure_init(&c,context,1));
+        assert(aclpci_dma_closure_service(&device,NULL,&c,generation)==-EPERM);
+        for(n=0;n<30;++n) {
+            if(n==20)w[1]=9;
+            if(mode&&n==boundary) {
+                if(mode==1)++device.dma_data.publication_generation;
+                if(mode==2)device.io_blocked=false;
+                if(mode==3)device.dma_data.fault=-EIO;
+                if(mode==4)device.dma_data.contract_valid=false;
+                if(mode==5)device.removed=true;
+                if(mode==6)file.closed=true;
+                if(mode==7)device.pr_in_progress=true;
+                if(mode==8)device.bar_length[2]=ACLPCI_PLATFORM_CLOSURE_BASE+ACLPCI_PLATFORM_CLOSURE_BYTES-1;
+                if(mode==9)device.bar[2]=NULL;
+                if(mode==10)device.control_debt=false;
+            }
+            reads=test.mmio_reads;writes=test.mmio_writes;
+            result=aclpci_dma_closure_service(&device,&file,&c,generation);
+            assert(test.mmio_reads+test.mmio_writes<=reads+writes+1);
+            if(mode&&n>=boundary) {
+                assert(result<0&&reads==test.mmio_reads&&writes==test.mmio_writes);
+                device.dma_data.publication_generation=generation;device.io_blocked=true;
+                device.dma_data.fault=0;device.dma_data.contract_valid=true;device.removed=false;
+                file.closed=false;device.pr_in_progress=false;device.bar_length[2]=sizeof bar4;
+                device.bar[2]=bar4;device.control_debt=true;
+            }
+        }
+        if(!mode)assert(result==1&&w[10]==0xa10b0001);
+        assert(device.io_blocked);
+        /* Test teardown only: production keeps the control debt. */
+        device.control_debt=false;assert(!aclpci_control_release_unused(&file));up(&device.sem);
+        assert(!aclpci_dma_finish(&device));assert(!test.live_allocs);
+    }
+    puts("PASS closure transport: 30 boundaries, ten custody losses, sticky errors, protected raw window");
+}
+
 int main(void)
 {
+    test_closure_mmio();
     test_close_publication();
     test_identity_capture_failures();
     test_identity_discovery_mmio();
@@ -1357,6 +1407,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all twenty executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all twenty-one executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

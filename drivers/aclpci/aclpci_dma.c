@@ -46,6 +46,7 @@
 #endif
 
 #include "platform_control_abi.h"
+#include "aclpci_upstream_closure.h"
 
 struct dma_completion {
     struct aclpci_file *owner;
@@ -487,6 +488,58 @@ int aclpci_dma_close_publication(struct aclpci_dev *a, struct aclpci_file *owner
         if (d->active) aclpci_dma_request_stop(&d->request);
         *generation = d->publication_generation;
     }
+    mutex_unlock(&d->lock);
+    return result;
+}
+
+static int closure_mmio_check(struct aclpci_dev *a, unsigned int offset)
+{
+    if (!a->online || a->removed || a->pr_in_progress) return -ENODEV;
+    if (!a->io_blocked || !a->dma_data.contract_valid) return -EACCES;
+    if ((offset & 3) || offset > ACLPCI_PLATFORM_CLOSURE_BYTES - sizeof(u32)) return -EINVAL;
+    if (!a->bar[ACLPCI_PLATFORM_CONTROL_BAR] ||
+        a->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] <
+        ACLPCI_PLATFORM_CLOSURE_BASE + ACLPCI_PLATFORM_CLOSURE_BYTES) return -ERANGE;
+    return 0;
+}
+static int closure_mmio_read(void *context, unsigned int offset, u32 *value)
+{
+    struct aclpci_dev *a = context;
+    int error = closure_mmio_check(a, offset);
+    if (error) return error;
+    *value = ioread32(a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + ACLPCI_PLATFORM_CLOSURE_BASE + offset);
+    return 0;
+}
+static int closure_mmio_write(void *context, unsigned int offset, u32 value)
+{
+    struct aclpci_dev *a = context;
+    int error = closure_mmio_check(a, offset);
+    if (error) return error;
+    iowrite32(value, a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + ACLPCI_PLATFORM_CLOSURE_BASE + offset);
+    return 0;
+}
+static int closure_mmio_flush(void *context)
+{
+    u32 value;
+    int error = closure_mmio_read(context, 4, &value);
+    return error ? error : value == 8 ? 0 : -EIO;
+}
+int aclpci_dma_closure_service(struct aclpci_dev *a, struct aclpci_file *owner,
+                             struct aclpci_upstream_closure *c, u64 generation)
+{
+    struct aclpci_dma *d = &a->dma_data;
+    const struct aclpci_fence_io io = {a, closure_mmio_read, closure_mmio_write, closure_mmio_flush};
+    int result;
+    if (!c) return -EINVAL;
+    if (!owner || a->control_owner != owner) return -EPERM;
+    if (c->result < 0) return c->result;
+    if (!d->initialized) return c->result = -ENODEV;
+    mutex_lock(&d->lock);
+    if (owner->closed || !a->online || a->removed || a->pr_in_progress ||
+        !a->io_blocked || !d->contract_valid || d->fault || !a->control_debt ||
+        generation != d->publication_generation)
+        result = c->result = -ESTALE;
+    else result = aclpci_upstream_closure_step(c, &io);
     mutex_unlock(&d->lock);
     return result;
 }

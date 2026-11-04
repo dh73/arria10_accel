@@ -544,7 +544,9 @@ static bool protected_write(const struct acl_cmd *cmd, size_t size)
        overlaps(offset, size, ACLPCI_PLATFORM_COMMAND_BASE,
                 ACLPCI_PLATFORM_COMMAND_BYTES) ||
        overlaps(offset, size, ACLPCI_PLATFORM_CONTEXT_BASE,
-                ACLPCI_PLATFORM_CONTEXT_BYTES)))
+                ACLPCI_PLATFORM_CONTEXT_BYTES) ||
+       overlaps(offset, size, ACLPCI_PLATFORM_CLOSURE_BASE,
+                ACLPCI_PLATFORM_CLOSURE_BYTES)))
     return true;
 
   if (cmd->bar_id == ACL_PCIE_DMA_INTERNAL_BAR &&

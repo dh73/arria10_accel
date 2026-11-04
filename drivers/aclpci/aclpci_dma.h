@@ -42,6 +42,7 @@
 #include "aclpci_dma_request.h"
 #include "aclpci_round_fence.h"
 #include "aclpci_supervisor_command.h"
+#include "aclpci_upstream_closure.h"
 
 struct aclpci_dev;
 struct aclpci_file;
@@ -105,4 +106,8 @@ int aclpci_dma_startup_service(struct aclpci_dev *, struct aclpci_file *);
  * Active DMA remains owned. This is NOT a PCIe ordering/drain certificate;
  * an ordered, context-bound hardware closure handshake must follow. */
 int aclpci_dma_close_publication(struct aclpci_dev *, struct aclpci_file *, u64 *generation);
+/* Caller retains request and generation from close_publication under sem.
+ * May run while accepted DMA is active; does not send hardware STOP. */
+int aclpci_dma_closure_service(struct aclpci_dev *, struct aclpci_file *,
+                             struct aclpci_upstream_closure *, u64 generation);
 #endif
