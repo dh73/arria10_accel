@@ -9,16 +9,17 @@
 
 ## Current full-hierarchy boundary
 
-The unmodified reference now completes both DMA directions and two 128-byte
-host-memory comparisons using its generated library flow. The combined
-candidate trains the link and configures BARs, then rejects a legal BAR write:
-its completion validator treats unrelated traffic on the shared receive FIFO
-as a malformed completion. An unchanged-engine witness reproduces the fault
-before any DMA request. No candidate full-hierarchy pass is claimed.
+The combined candidate now completes both DMA directions through the full
+root-port hierarchy with endpoint memory. The shared receive dispatch fix passes
+two 128-byte comparisons and two 256-byte comparisons. The larger test poisons
+host destinations and checks both status slots in each direction, with
+per-descriptor reporting explicitly enabled. Nine isolated dispatch and producer
+regressions also pass, including unrelated BAR/TXS traffic and malformed returns.
 
-Next: separate receive dispatch from completion validation, retaining error,
-unknown-tag and ownership checks; rerun the combined hierarchy; then exercise
-multi-burst descriptors with poisoned destinations and every status slot checked.
+These are finite simulation results with pinned FIFO models, not physical DDR,
+board, bandwidth or cross-version model equivalence. Next: broaden full-hierarchy
+coverage to contention, reset/error containment and descriptor reuse, then
+integrate initialized DDR and the production transport.
 Candidate descriptor tables use `0x80000000` and `0x80002000`, outside the 2-GiB
 payload aperture. The legacy reference fixture uses different table addresses;
 candidate tests must select the candidate layout explicitly.
@@ -32,7 +33,8 @@ candidate tests must select the candidate layout explicitly.
   qualified separately. The v5 candidate now carries metadata through native
   return commands and internalizes both table destinations and closure. Fourteen
   producer/route/consumer scenarios pass, and its 357-module hierarchy elaborates.
-  Actual controller-to-return composition and whole-parent behavior remain open.
+  The combined root-port fixture now covers aligned sequential transfers;
+  concurrent, reset/error and broader whole-parent behavior remain open.
 * Connect the corrected D2H count producer and unaligned payload path through
   the actual aligner and packet generator. Check emitted packets against an
   independent destination-byte oracle under stalls, ring wraps and maximum
@@ -44,7 +46,8 @@ candidate tests must select the candidate layout explicitly.
   Reserved completion capacity, saved metadata and accepted status/MSI retirement
   are checked locally. The containing derivative elaborates 357 modules with
   retirement diagnostics exposed and no new design-warning signatures. PCIe
-  host delivery and full-parent simulation remain open.
+  host delivery is checked in the finite root-port fixture above; physical
+  delivery and broader full-parent coverage remain open.
 * Compose both directions with DDR initialization, arbitration and supervision.
   Establish reset epochs, error custody, diagnostic storage, interrupt behavior
   and host-visible retirement before connecting the production transport.
@@ -73,5 +76,5 @@ missed. All five controller cases now pass requalification with compatible
 models and strict diagnostic checks; 22 input hashes and the native logs were
 verified. The 24 consumer cases and abstract proof remain separate evidence.
 Use the new controller qualification rather than the original contaminated runs.
-Full-parent behavior is still unqualified. Original review inputs and logs
+The combined hierarchy has the finite coverage stated above. Original review inputs and logs
 remain preserved.
