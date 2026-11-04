@@ -19,6 +19,15 @@ target_link_libraries(a10_kernel_mailbox_test PRIVATE a10_kernel_mailbox)
 target_compile_options(a10_kernel_mailbox_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME a10_kernel_mailbox COMMAND a10_kernel_mailbox_test)
 
+add_library(a10_aclpci_mailbox_port STATIC src/aclpci_mailbox_port.cpp)
+target_link_libraries(a10_aclpci_mailbox_port PUBLIC a10_kernel_mailbox)
+target_include_directories(a10_aclpci_mailbox_port PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+target_compile_options(a10_aclpci_mailbox_port PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_aclpci_mailbox_port_test tests/aclpci_mailbox_port_test.cpp)
+target_link_libraries(a10_aclpci_mailbox_port_test PRIVATE a10_aclpci_mailbox_port)
+target_include_directories(a10_aclpci_mailbox_port_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+add_test(NAME a10_aclpci_mailbox_port COMMAND a10_aclpci_mailbox_port_test)
+
 if(A10_BUILD_DMA_LIFECYCLE)
   set(AOCL_MMD_INCLUDE_DIR "" CACHE PATH
       "Directory containing MMD/aocl_mmd.h from pinned fpga-runtime-for-opencl")
