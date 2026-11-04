@@ -8,6 +8,15 @@
 
 namespace im = asus::a10::image;
 namespace kn = asus::a10::kernel;
+#ifdef A10_IDENTITY_CROSS_CHECK
+#include "shell_identity_cross_check.hpp"
+#else
+static im::Report cross_check(const im::RawSnapshot& raw, const kn::SourceAbi& source,
+                              const im::Expected& expected, const im::Context& context,
+                              const std::vector<im::Resource>& resources) {
+  return im::check(raw, source, expected, context, resources);
+}
+#endif
 using Words = std::array<std::uint32_t, 72>;
 static void need(bool ok, const char* why) {
   if (!ok) throw std::runtime_error(why);
@@ -46,7 +55,7 @@ static im::RawSnapshot sample() {
   return r;
 }
 static im::Report check(const im::RawSnapshot& r) {
-  return im::check(r, kn::generated_abi(), expected(), context, resources);
+  return cross_check(r, kn::generated_abi(), expected(), context, resources);
 }
 static Words flatten(const im::RawSnapshot& r) {
   Words words{}; words[6] = r.before; words[71] = r.after;
@@ -120,21 +129,21 @@ static void host_tests() {
   need(check(r).code == im::Code::Malformed, "empty source ID");
   r = baseline; put64(r, 28, std::numeric_limits<std::uint64_t>::max() - 511);
   const std::vector<im::Resource> huge{{7, std::numeric_limits<std::uint64_t>::max()}};
-  need(im::check(r, kn::generated_abi(), expected(), context, huge).code ==
+  need(cross_check(r, kn::generated_abi(), expected(), context, huge).code ==
        im::Code::BadRange, "overflowing endpoint");
   auto e = expected(); e.management.bytes = 0;
-  need(im::check(baseline, kn::generated_abi(), e, context, resources).code ==
+  need(cross_check(baseline, kn::generated_abi(), e, context, resources).code ==
        im::Code::BadRange, "invalid expected mapping");
   auto duplicates = resources; duplicates.push_back(resources[0]);
-  need(im::check(baseline, kn::generated_abi(), expected(), context, duplicates).code ==
+  need(cross_check(baseline, kn::generated_abi(), expected(), context, duplicates).code ==
        im::Code::BadRange, "ambiguous resource");
   // Abutting ranges and equal offsets in DIFFERENT declared resources are legal.
   r = baseline; e = expected(); e.cra.offset = 0x1100; put64(r, 28, e.cra.offset);
-  need(im::check(r, kn::generated_abi(), e, context, resources).code == good_code(),
+  need(cross_check(r, kn::generated_abi(), e, context, resources).code == good_code(),
        "valid adjacency");
   r = baseline; e = expected(); e.cra = {8, 0x1000, 512};
   r.words[25] = 8; put64(r, 28, 0x1000);
-  need(im::check(r, kn::generated_abi(), e, context, {{7, 0x10000}, {8, 0x10000}}).code ==
+  need(cross_check(r, kn::generated_abi(), e, context, {{7, 0x10000}, {8, 0x10000}}).code ==
        good_code(), "separate resource ranges");
   // Healthy, faulted/drained and invalid health snapshots never grant authority.
   r = baseline; r.words[38] = 1 | (6 << 1) | (4 << 4) | 128 | 256;
@@ -206,6 +215,9 @@ static void host_tests() {
   Transcript wrong_offset(flatten(baseline)); wrong_offset.offset_at = 71;
   im::Cursor oc(94);
   need(im::capture(wrong_offset, oc).code == im::Code::ReplyMismatch, "wrong offset");
+#ifdef A10_IDENTITY_CROSS_CHECK
+  std::cout << "A10_IDENTITY_C_CXX_PASS comparisons=" << cross_checks << '\n';
+#endif
   std::cout << "A10_IDENTITY_HOST_PASS\n";
 }
 static std::string hex(const im::Digest& d) {

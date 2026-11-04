@@ -1,5 +1,6 @@
 #pragma once
 #include "generated_kernel_abi.hpp"
+#include "../../drivers/aclpci/shell_identity_abi.h"
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -7,7 +8,7 @@
 namespace asus::a10::image {
 using Digest = std::array<std::uint8_t, 32>;
 using Session = std::array<std::uint32_t, 4>;
-constexpr std::uint32_t block_bytes = 256, capabilities = 31;
+constexpr std::uint32_t block_bytes = ACLPCI_ID_BYTES, capabilities = ACLPCI_ID_CAPABILITIES;
 struct Range {
   std::uint32_t space;
   std::uint64_t offset, bytes;
