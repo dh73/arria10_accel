@@ -22,8 +22,7 @@ auto memory(T* p) {
   return sycl::ext::oneapi::experimental::annotated_arg(p, fpga::register_map,
       fpga::buffer_location<0>, fpga::dwidth<512>, fpga::awidth<35>,
       fpga::latency<0>, fpga::maxburst<1>,
-      sycl::ext::oneapi::experimental::alignment<64>,
-      sycl::ext::oneapi::experimental::unaliased);
+      sycl::ext::oneapi::experimental::alignment<64>);
 }
 
 class Copy;
@@ -36,7 +35,7 @@ sycl::event copy(sycl::queue& queue, const std::uint32_t* input,
       reinterpret_cast<std::uintptr_t>(output), count);
   auto src = memory(input);
   auto dst = memory(output);
-  return queue.single_task<Copy>([=] {
+  return queue.single_task<Copy>([=]() [[intel::kernel_args_restrict]] {
     const std::uint64_t blocks = std::uint64_t(count) / 16;
     for (std::uint64_t block = 0; block < blocks; ++block) {
       // Constant-bound lanes expose independent accesses without the
@@ -64,7 +63,7 @@ sycl::event triad(sycl::queue& queue, const std::uint32_t* input_a,
   auto a = memory(input_a);
   auto b = memory(input_b);
   auto dst = memory(output);
-  return queue.single_task<Triad>([=] {
+  return queue.single_task<Triad>([=]() [[intel::kernel_args_restrict]] {
     const std::uint64_t blocks = std::uint64_t(count) / 16;
     for (std::uint64_t block = 0; block < blocks; ++block) {
       #pragma unroll
