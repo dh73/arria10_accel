@@ -260,6 +260,7 @@ static void reset_fixture(void)
     device.bar_length[0] = sizeof(registers);
     file.aclpci = &device;
     kref_init(&file.ref);
+    init_waitqueue_head(&file.dma_completion_wait);
     device.signal_info_dma.si_signo = SIG_INT_NOTIFY;
     device.signal_info_dma.si_int = 0x5a;
     registers[ACL_PCIE_DMA_RD_LAST_PTR / 4] = ACL_PCIE_DMA_RESET_ID;

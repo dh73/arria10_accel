@@ -13,6 +13,16 @@
 #include <limits.h>
 #include <sys/types.h>
 /* Do not include libc errno.h: glibc includes linux/errno.h recursively. */
+typedef unsigned int __poll_t;
+typedef struct { unsigned wakes, registrations; } wait_queue_head_t;
+typedef struct { unsigned unused; } poll_table;
+struct file;
+#define EPOLLIN 1
+#define EPOLLRDNORM 64
+#define EPOLLERR 8
+static inline void init_waitqueue_head(wait_queue_head_t *q) { q->wakes=0; q->registrations=0; }
+static inline void wake_up_interruptible(wait_queue_head_t *q) { ++q->wakes; }
+static inline void poll_wait(struct file *f,wait_queue_head_t *q,poll_table *p) { (void)f; if(p)++q->registrations; }
 #define EPERM 1
 #define ENOENT 2
 #define ESRCH 3
@@ -263,6 +273,7 @@ struct aclpci_file {
     /* Protected by dma_data.lock; completion published after mapping release. */
     u64 dma_submitted, dma_completed;
     int dma_completion_result;
+    wait_queue_head_t dma_completion_wait;
     int async_error;
 };
 void aclpci_file_get(struct aclpci_file *f);

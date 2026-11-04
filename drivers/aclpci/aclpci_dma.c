@@ -120,6 +120,7 @@ static void notify_completion(struct dma_completion *done)
      * turn an already retired transfer into another completion. The caller
      * holds d->lock so notification precedes acceptance of the next request.
      * file_put is a context kref put, never fput or a worker flush. */
+    wake_up_interruptible(&done->owner->dma_completion_wait);
     send_sig_info(SIG_INT_NOTIFY, &done->signal, done->task);
     put_task_struct(done->task);
     aclpci_file_put(done->owner);

@@ -11,7 +11,12 @@
  * the next generation after acceptance; unknown submission must never replay.
  * DRAINED is published after mapping release, not on IRQ or idle observation.
  * The receipt covers request buffers, not destruction of shared DMA tables.
- * Request generations never wrap and are scoped to the open file lifetime. */
+ * Request generations never wrap and are scoped to the open file lifetime.
+ * poll/epoll reports readable only when this file has a nonzero submitted
+ * generation equal to its retired generation. Register a one-shot event after
+ * submission and read the exact receipt on wake. Readiness is level-triggered
+ * until the next submission; a receipt read does not acknowledge or clear it.
+ * Early IRQs and uncertain device removal do not certify retirement. */
 /* Explicit asynchronous DMA, using acl_cmd device_addr/user_addr/size and
  * read/write direction. No PIO fallback; native byte order only. Size and
  * addresses must meet the driver's DMA constraints. Zero return is acceptance,

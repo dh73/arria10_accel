@@ -100,6 +100,7 @@ struct inode { int unused; };
 struct file { int unused; };
 struct file_operations {
     void *owner;
+    unsigned int (*poll)(struct file *, void *);
     ssize_t (*read)(struct file *, char *, size_t, loff_t *);
     ssize_t (*write)(struct file *, const char *, size_t, loff_t *);
     int (*open)(struct inode *, struct file *);
@@ -242,6 +243,7 @@ static void unregister_chrdev_region(dev_t n, int count) { (void)n; assert(count
 static void class_destroy(struct class *c) { assert(c==&mock_class); }
 static int pci_register_driver(struct pci_driver *d) { assert(d->driver.suppress_bind_attrs); return 0; }
 static void pci_unregister_driver(struct pci_driver *d) { (void)d; }
+static unsigned int aclpci_poll(struct file *f,void *wait) { (void)f;(void)wait; return 0; }
 static ssize_t aclpci_read(struct file *f,char *p,size_t n,loff_t *off) { (void)f;(void)p;(void)n;(void)off; return 0; }
 static ssize_t aclpci_write(struct file *f,const char *p,size_t n,loff_t *off) { (void)f;(void)p;(void)n;(void)off; return 0; }
 static int aclpci_open(struct inode *i,struct file *f) { (void)i;(void)f; return 0; }

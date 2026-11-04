@@ -45,6 +45,7 @@
 #include <linux/semaphore.h>
 #include <linux/atomic.h>
 #include <linux/wait.h>
+#include <linux/poll.h>
 #include <linux/kobject.h>
 #include <linux/kref.h>
 #include <linux/mutex.h>
@@ -147,6 +148,7 @@ struct aclpci_file {
     /* Protected by dma_data.lock; completion published after mapping release. */
     u64 dma_submitted, dma_completed;
     int dma_completion_result;
+    wait_queue_head_t dma_completion_wait;
 };
 
 /* Device data used by this driver. */
@@ -249,6 +251,7 @@ struct aclpci_dev {
 /* aclpci_fileio.c funciton */
 int aclpci_open(struct inode *inode, struct file *file);
 int aclpci_close(struct inode *inode, struct file *file);
+__poll_t aclpci_poll(struct file *file, poll_table *wait);
 ssize_t aclpci_read(struct file *file, char __user *buf, size_t count, loff_t *pos);
 ssize_t aclpci_write(struct file *file, const char __user *buf, size_t count, loff_t *pos);
 void* aclpci_get_checked_addr (int bar_id, void *device_addr, size_t count,

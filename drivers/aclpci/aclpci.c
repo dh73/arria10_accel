@@ -83,6 +83,7 @@ static struct pci_driver aclpci_driver = {
 static const struct file_operations aclpci_fileops = {
   .owner = THIS_MODULE,
   .read = aclpci_read,
+  .poll = aclpci_poll,
   .write = aclpci_write,
   .open = aclpci_open,
   .release = aclpci_close,

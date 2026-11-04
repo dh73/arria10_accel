@@ -4,10 +4,15 @@
 #undef main
 static struct file client_fd;
 void receipt_fixture_begin(void) {
+    poll_table waiter = {0};
     init_engine();client_fd.private_data=&file;
+    assert(!aclpci_poll(&client_fd,&waiter));
+    assert(file.dma_completion_wait.registrations==1);
 }
 long receipt_fixture_read(void *cmd, unsigned long bytes) {
-    return aclpci_read(&client_fd,cmd,bytes,NULL);
+    long result=aclpci_read(&client_fd,cmd,bytes,NULL);
+    if (device.dma_data.active) assert(!aclpci_poll(&client_fd,NULL));
+    return result;
 }
 void receipt_fixture_submit(void) {
     struct acl_cmd cmd = { .bar_id=ACLPCI_CMD_BAR, .command=ACLPCI_CMD_DMA_SUBMIT,
@@ -17,7 +22,10 @@ void receipt_fixture_submit(void) {
     assert(device.dma_data.active && test.doorbells==before+1);
 }
 void receipt_fixture_irq_without_status(void) {
+    unsigned wakes=file.dma_completion_wait.wakes;
     aclpci_dma_service_interrupt(&device);run_work();
+    assert(file.dma_completion_wait.wakes==wakes);
+    assert(!aclpci_poll(&client_fd,NULL));
     assert(device.dma_data.active);
 }
 void receipt_fixture_stop(void) {
@@ -25,11 +33,17 @@ void receipt_fixture_stop(void) {
     assert(device.dma_data.active);
 }
 void receipt_fixture_complete(void) {
+    unsigned wakes=file.dma_completion_wait.wakes;
+    assert(!aclpci_poll(&client_fd,NULL));
     complete_with_irq();assert(!device.dma_data.active);
+    assert(file.dma_completion_wait.wakes==wakes+1);
+    assert(aclpci_poll(&client_fd,NULL)==(EPOLLIN|EPOLLRDNORM));
     assert(test.unmaps && test.unpins);
 }
 void receipt_fixture_finish(void) { finish_engine(); }
 
 long receipt_fixture_write(void *cmd, unsigned long bytes) {
-    return aclpci_write(&client_fd,cmd,bytes,NULL);
+    long result=aclpci_write(&client_fd,cmd,bytes,NULL);
+    if (device.dma_data.active) assert(!aclpci_poll(&client_fd,NULL));
+    return result;
 }

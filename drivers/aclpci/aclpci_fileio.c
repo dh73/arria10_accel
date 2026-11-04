@@ -239,6 +239,23 @@ int aclpci_control_release_unused(struct aclpci_file *owner)
   return 0;
 }
 
+/* Readiness is file-scoped retirement, never IRQ arrival. Register before
+ * checking under the same mutex used to publish completion, closing the
+ * register/check race. The runtime should use EPOLLONESHOT and consume the
+ * exact generation receipt; readiness alone is not a buffer-release proof. */
+__poll_t aclpci_poll(struct file *file, poll_table *wait)
+{
+  struct aclpci_file *owner = file->private_data;
+  __poll_t ready = 0;
+  if (!owner) return EPOLLERR;
+  poll_wait(file, &owner->dma_completion_wait, wait);
+  mutex_lock(&owner->aclpci->dma_data.lock);
+  if (owner->dma_submitted && owner->dma_completed == owner->dma_submitted)
+    ready = EPOLLIN | EPOLLRDNORM;
+  mutex_unlock(&owner->aclpci->dma_data.lock);
+  return ready;
+}
+
 int aclpci_open(struct inode *inode, struct file *file)
 {
   struct aclpci_file *owner;
@@ -261,6 +278,7 @@ int aclpci_open(struct inode *inode, struct file *file)
     return -ENODEV;
   }
   kref_init(&owner->ref);
+  init_waitqueue_head(&owner->dma_completion_wait);
   owner->aclpci = aclpci;
   if (down_interruptible(&aclpci->sem)) {
     result = -ERESTARTSYS;
