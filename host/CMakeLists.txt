@@ -101,7 +101,16 @@ if(A10_BUILD_KERNEL_EXECUTOR)
   target_link_libraries(a10_generated_kernel_executor PUBLIC Threads::Threads)
   target_compile_options(a10_generated_kernel_executor PRIVATE
     -Wall -Wextra -Wpedantic -Werror)
-  if(A10_KERNEL_EXECUTOR_PACKED)
+  option(A10_KERNEL_EXECUTOR_OPENCL "Test the generated streaming OpenCL ABI" OFF)
+  if(A10_KERNEL_EXECUTOR_OPENCL)
+    if(NOT A10_KERNEL_EXECUTOR_PACKED)
+      message(FATAL_ERROR "OpenCL streaming ABI requires packed source extraction")
+    endif()
+    add_executable(a10_generated_kernel_executor_test tests/opencl_kernel_executor_test.cpp)
+    add_test(NAME a10_opencl_cra_source
+      COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+        -s "${a10_repo}/tests/unit" -p test_opencl_cra_abi.py -v)
+  elseif(A10_KERNEL_EXECUTOR_PACKED)
     add_executable(a10_generated_kernel_executor_test tests/packed_kernel_executor_test.cpp)
   else()
     add_executable(a10_generated_kernel_executor_test tests/generated_kernel_executor_test.cpp)
