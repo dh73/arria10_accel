@@ -886,12 +886,14 @@ static void test_file_after_unbind_and_protected_io(void)
         assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -EPERM);
         command.size = 4;
     }
-    /* Every byte of both lifecycle windows is kernel-owned, including
+    /* Every byte of the lifecycle/context windows is kernel-owned, including
      * partial writes crossing their start/end. Adjacent ports are untouched. */
     command.bar_id = ACLPCI_PLATFORM_CONTROL_BAR;
-    for (i = 0; i < 2; ++i) {
-        unsigned long start = i ? ACLPCI_PLATFORM_COMMAND_BASE : ACLPCI_PLATFORM_FENCE_BASE;
-        unsigned int length = i ? ACLPCI_PLATFORM_COMMAND_BYTES : ACLPCI_PLATFORM_FENCE_BYTES;
+    for (i = 0; i < 3; ++i) {
+        unsigned long start = i == 2 ? ACLPCI_PLATFORM_CONTEXT_BASE :
+            i ? ACLPCI_PLATFORM_COMMAND_BASE : ACLPCI_PLATFORM_FENCE_BASE;
+        unsigned int length = i == 2 ? ACLPCI_PLATFORM_CONTEXT_BYTES :
+            i ? ACLPCI_PLATFORM_COMMAND_BYTES : ACLPCI_PLATFORM_FENCE_BYTES;
         unsigned int byte;
         for (byte = 0; byte < length; ++byte) {
             command.device_addr = (void *)(start + byte);
