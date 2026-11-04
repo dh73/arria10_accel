@@ -17,3 +17,6 @@ ${CC:-cc} -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g \
 ${CC:-cc} -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g \
     ${CFLAGS:-} -I "$here" "$here/lifecycle.c" -o "$tmp/lifecycle"
 "$tmp/lifecycle"
+${CC:-cc} -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -g \
+    ${CFLAGS:-} -I "$here" -I "$tmp" "$here/context_provision.c" -o "$tmp/context_provision"
+"$tmp/context_provision"
