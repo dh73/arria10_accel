@@ -109,6 +109,6 @@ module arria10_dma_ddr_mux_pipelined #(parameter int READ_DEPTH=8) (
   assert property(@(posedge clk) disable iff(!reset_n||!live)
     held |-> valid[held_owner] && req_read[held_owner]==held_read &&
       req_address[held_owner]==held_address && (!req_write[held_owner] ||
-      {req_writedata[held_owner],req_byteenable[held_owner]}=={held_data,held_be}));
+      {req_writedata[held_owner],req_byteenable[held_owner]}==={held_data,held_be}));
 `endif
 endmodule
