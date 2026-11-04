@@ -59,8 +59,29 @@ int main() {
   const auto& abi = generated_abi();
   CHECK(abi.validation() == SourceValidation::Reextracted);
   CHECK(abi.kernel_count() == 2 && abi.source_hash_count() == 6);
-  for (std::size_t i=0; i<2; ++i)
-    CHECK(abi.kernel(i).completion_accounting == CompletionAccounting::Unqualified);
+  // Bind expected classification to exact source bodies, not a caller flag.
+  for (std::size_t i=0; i<2; ++i) {
+    const auto& kernel = abi.kernel(i);
+    const bool is_copy = kernel.name == "a10_streaming_Copy";
+    CHECK(is_copy || kernel.name == "a10_streaming_Triad");
+    const std::string path = "kernel_hdl/" + std::string(kernel.name) + "/" +
+                             std::string(kernel.name) + "_function_cra_agent.sv";
+    const std::string_view corrected = is_copy
+      ? "813cfa3c23f5dd12153a739d797ed6269cb0d011399e1dee2200fb11b1af7d28"
+      : "99945ded8689c9fea99e3208fc87df774e95a50f3073951d428d1c510e31e30d";
+    const std::string_view original = is_copy
+      ? "7023f373c9a03c8939a6a883d65c3c91262edccb38ed15331e5aaf1f235e865e"
+      : "7d81d9ee195c3bcd5a0db5b80daed17214fb1054abaf42c901b5a56d4fae46d2";
+    bool found=false;
+    for(std::size_t h=0;h<abi.source_hash_count();++h) if(abi.source_hash(h).path==path) {
+      const auto digest=abi.source_hash(h).sha256;
+      CHECK(digest==original || digest==corrected);
+      CHECK(kernel.completion_accounting == (digest==corrected
+        ? CompletionAccounting::DelayedSnapshotV1 : CompletionAccounting::Unqualified));
+      found=true;
+    }
+    CHECK(found);
+  }
   Launch::NamedArguments args{{"arg_dst",0x1234567887654321},
                              {"arg_count",17},{"arg_src",0x1122334455667788}};
   const auto copy = Launch::make("a10_streaming_Copy",args);
