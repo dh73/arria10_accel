@@ -64,14 +64,16 @@ cl_device_id select_device(const std::string& platform, const std::string& name)
   return selected;
 }
 struct Timing { cl_ulong start, end; };
-Timing timing(cl_event event) {
+Timing timing(cl_event event, size_t resolution) {
   Timing t{};
   check(clGetEventProfilingInfo(event,CL_PROFILING_COMMAND_START,sizeof(t.start),&t.start,nullptr),"profile start");
   check(clGetEventProfilingInfo(event,CL_PROFILING_COMMAND_END,sizeof(t.end),&t.end,nullptr),"profile end");
   if (t.end <= t.start) throw std::runtime_error("Unresolved or reversed event duration");
+  if (t.end-t.start < resolution)
+    throw std::runtime_error("Event duration below profiling timer resolution; use a larger workload");
   return t;
 }
-void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel second, cl_uint n) {
+void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel second, cl_uint n, size_t resolution) {
   std::vector<cl_uint> a(n),b(n),out(n,0xa5a5a5a5U);
   cl_uint state=0x6d2b79f5U ^ n;
   auto random=[&](){state^=state<<13;state^=state>>17;state^=state<<5;return state;};
@@ -96,7 +98,7 @@ void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel 
   check(clFinish(queue),"finish");
   for(cl_uint i=0;i<n;++i) if(out[i]!=asus_a10::workload_reference(a[i],b[i],i))
     throw std::runtime_error("Mismatch count="+std::to_string(n)+" index="+std::to_string(i));
-  const auto t1=timing(e1.value),t2=timing(e2.value);
+  const auto t1=timing(e1.value,resolution),t2=timing(e2.value,resolution);
   if (t2.start<t1.end) throw std::runtime_error("Dependent kernel timestamps overlap");
   const auto elapsed=t2.end-t1.start;
   // Two reads and one write per element, per pass: algorithm traffic only.
@@ -108,7 +110,7 @@ void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel 
   std::cout<<"OPENCL_DEVICE_DATA_PASS count="<<n<<'\n';
 }
 void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
-                cl_kernel triad, cl_uint n) {
+                cl_kernel triad, cl_uint n, size_t resolution) {
   std::vector<cl_uint> a(n),b(n),out(n);
   for(cl_uint i=0;i<n;++i){a[i]=i*0x9e3779b1U+0x80000000U;b[i]=~(i*17U);}
   const size_t bytes=size_t(n)*sizeof(cl_uint);
@@ -136,7 +138,7 @@ void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
       auto expected=pass?static_cast<cl_uint>(std::uint64_t(a[i])+std::uint64_t(b[i])*scale):a[i];
       if(out[i]!=expected)throw std::runtime_error("Streaming mismatch index="+std::to_string(i));
     }
-    const auto t=timing(event.value);const std::uint64_t traffic=std::uint64_t(n)*(pass?12:8);
+    const auto t=timing(event.value,resolution);const std::uint64_t traffic=std::uint64_t(n)*(pass?12:8);
     std::cout<<"OPENCL_STREAM_DATA_PASS kernel="<<(pass?"triad":"copy")<<" count="<<n
              <<" elapsed_ns="<<(t.end-t.start)<<" algorithm_bytes="<<traffic
              <<" algorithm_GBps="<<(double(traffic)/double(t.end-t.start))<<'\n';
@@ -205,8 +207,8 @@ int main(int argc,char** argv) {
     first.value=clCreateKernel(program.value,streaming?"stream_copy512":"correctness_pass1",&error);check(error,"pass1 kernel");
     second.value=clCreateKernel(program.value,streaming?"stream_triad512":"correctness_pass2",&error);check(error,"pass2 kernel");
     for(cl_uint n:counts){
-      if(streaming)run_stream(context.value,queue.value,first.value,second.value,n);
-      else run(context.value,queue.value,first.value,second.value,n);
+      if(streaming)run_stream(context.value,queue.value,first.value,second.value,n,timer_resolution);
+      else run(context.value,queue.value,first.value,second.value,n,timer_resolution);
     }
     return 0;
   } catch(const std::exception& e){std::cerr<<"OpenCL failure: "<<e.what()<<'\n';return 1;}

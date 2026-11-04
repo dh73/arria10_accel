@@ -69,7 +69,7 @@ retention, DMA, device faults or physical execution.
 
 The queue enables event profiling and reports timer resolution, both kernel
 execution durations and the span from pass1 start to pass2 end. A missing,
-zero-duration, reversed or overlapping dependent timestamp fails measurement.
+zero-duration, sub-resolution, reversed or overlapping dependent timestamp fails measurement.
 Small cases can fall below the timer resolution and require a longer workload
 before a rate can be reported.
 

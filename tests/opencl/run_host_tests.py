@@ -18,7 +18,7 @@ subprocess.run([a.cxx,'-std=c++17','-O2','-Wall','-Wextra','-Werror','-I'+str(a.
 command=[str(build/'host'),'--physical',str(build/'fixture.bin'),'fixture','fixture-device']
 def run(name,env,expected):
     clean=os.environ.copy()
-    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS','SMALL_ALLOC','SMALL_MEMORY'):clean.pop(key,None)
+    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS','SMALL_ALLOC','SMALL_MEMORY','TIMER_RESOLUTION'):clean.pop(key,None)
     r=subprocess.run(command,env=dict(clean,**env),text=True,capture_output=True)
     (build/(name+'.log')).write_text(r.stdout+r.stderr)
     assert r.returncode==expected,(name,r.returncode,r.stderr)
@@ -34,6 +34,10 @@ for n,byte_count,rate in timings:
     assert int(byte_count)==int(n)*24
     assert abs(float(rate)-int(byte_count)/350) <= max(1e-6,int(byte_count)/350*1e-5)
 for value in (1,2,3):run(f'bad-time-{value}',{'BAD_TIME':str(value)},1)
+run('timer-boundary',{'TIMER_RESOLUTION':'100'},0)
+for value in (0,101):
+    r,_=run('timer-reject-'+str(value),{'TIMER_RESOLUTION':str(value)},1)
+    assert 'algorithm_GBps=' not in r.stdout
 for i in range(1,total+1):run(f'failure-{i}',{'FAIL_AT':str(i)},1)
 for key in ('DUPLICATE','BAD_BINARY','CORRUPT'):run(key.lower(),{key:'1'},1)
 command.append('--streaming')
@@ -43,6 +47,9 @@ assert len(rows)==14
 for kind,n,byte_count,rate in rows:
     assert int(byte_count)==int(n)*(8 if kind=='copy' else 12)
     assert abs(float(rate)-int(byte_count)/200)<=max(1e-6,int(byte_count)/200*1e-5)
+run('stream-timer-boundary',{'TIMER_RESOLUTION':'200'},0)
+r,_=run('stream-timer-below',{'TIMER_RESOLUTION':'201'},1)
+assert 'algorithm_GBps=' not in r.stdout
 for i in range(1,stream_calls+1):run(f'stream-failure-{i}',{'FAIL_AT':str(i)},1)
 for key in ('DUPLICATE','BAD_BINARY','CORRUPT','BAD_ALIGN'):run('stream-'+key.lower(),{key:'1'},1)
 for value in (1,2):run(f'stream-bad-time-{value}',{'BAD_TIME':str(value)},1)
