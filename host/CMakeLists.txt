@@ -202,6 +202,10 @@ if(A10_BUILD_KERNEL_EXECUTOR AND A10_BUILD_SHELL_IDENTITY)
     target_link_libraries(a10_shell_identity_expected INTERFACE a10_shell_identity)
     target_include_directories(a10_shell_identity_expected INTERFACE
       "${A10_SHELL_IDENTITY_PREPARED_DIR}")
+    add_executable(a10_prepared_identity_test tests/prepared_identity_test.cpp)
+    target_link_libraries(a10_prepared_identity_test PRIVATE a10_shell_identity_expected)
+    target_compile_options(a10_prepared_identity_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    add_test(NAME a10_prepared_identity COMMAND a10_prepared_identity_test)
     # The HDL build must consume this SAME params file at shell_identity_v1.
     # Source/build comparison still occurs in image::check; this target grants no I/O.
   endif()
