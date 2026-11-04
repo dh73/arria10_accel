@@ -1,7 +1,13 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #ifndef ACLPCI_ROUND_FENCE_H
 #define ACLPCI_ROUND_FENCE_H
+#ifdef __KERNEL__
 #include <linux/types.h>
+#else
+#include <stdint.h>
+typedef uint32_t u32;
+typedef uint64_t u64;
+#endif
 /* Kernel-owned immutable image/session context. Caller serializes service and
  * uses ordered, same-function, non-relaxed MMIO. No userspace certificates.
  * This protocol alone neither contains reset/removal nor releases DMA memory. */

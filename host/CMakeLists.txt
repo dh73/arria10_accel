@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(asus_a10_dma_lifecycle LANGUAGES CXX)
+project(asus_a10_dma_lifecycle LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -245,3 +245,17 @@ add_executable(a10_platform_startup_test tests/platform_startup_test.cpp)
 target_link_libraries(a10_platform_startup_test PRIVATE a10_platform_startup)
 target_compile_options(a10_platform_startup_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME a10_platform_startup COMMAND a10_platform_startup_test)
+
+add_library(a10_closed_startup_protocol STATIC
+  ../drivers/aclpci/aclpci_startup.c ../drivers/aclpci/aclpci_startup_closed.c
+  ../drivers/aclpci/aclpci_upstream_closure.c ../drivers/aclpci/aclpci_context_provision.c
+  ../drivers/aclpci/aclpci_round_fence.c ../drivers/aclpci/aclpci_supervisor_command.c)
+set_target_properties(a10_closed_startup_protocol PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_library(a10_platform_closed_startup STATIC src/platform_closed_startup.cpp)
+target_include_directories(a10_platform_closed_startup PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+target_link_libraries(a10_platform_closed_startup PUBLIC a10_kernel_mailbox PRIVATE a10_closed_startup_protocol)
+target_compile_options(a10_platform_closed_startup PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_platform_closed_startup_test tests/platform_closed_startup_test.cpp)
+target_link_libraries(a10_platform_closed_startup_test PRIVATE a10_platform_closed_startup)
+target_compile_options(a10_platform_closed_startup_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME a10_platform_closed_startup COMMAND a10_platform_closed_startup_test)
