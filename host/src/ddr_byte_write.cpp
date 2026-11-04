@@ -2,11 +2,13 @@
 #include <limits>
 namespace asus::a10::memory {
 ByteWrite::ByteWrite(mailbox::Port& p,std::uint64_t base,std::uint64_t bytes,
- std::uint64_t address,std::uint32_t data,std::uint8_t mask,std::uint32_t sequence) noexcept
- :port_(p),base_(base),address_(address),data_(data),sequence_(sequence),mask_(mask){
+ std::uint64_t address,std::uint32_t data,std::uint8_t mask,std::uint32_t sequence,
+ WriteCompletion completion) noexcept
+ :port_(p),base_(base),address_(address),data_(data),sequence_(sequence),mask_(mask),completion_(completion){
  if((base&3)||base>std::numeric_limits<std::uint64_t>::max()-35||
     bytes<4||bytes>0x80000000ULL||(bytes&3)||(address&3)||address>bytes-4||
-    !mask||(mask&0xf0)||!sequence)state_=WriteState::Rejected;
+    !mask||(mask&0xf0)||!sequence ||
+    (completion!=WriteCompletion::BackendAcceptance && completion!=WriteCompletion::SelectedByteReadback))state_=WriteState::Rejected;
 }
 WriteState ByteWrite::advance() noexcept {
  if(state_!=WriteState::Progress&&state_!=WriteState::AwaitingCompletion)return state_;
@@ -25,7 +27,7 @@ WriteState ByteWrite::advance() noexcept {
   default:return state_=WriteState::Unknown;
  }
  if(reply.outcome!=mailbox::Outcome::Completed)return state_=WriteState::Unknown;
- if((step_==0&&reply.value!=0x42595701)||
+ if((step_==0&&reply.value!=static_cast<std::uint32_t>(completion_))||
     (step_==1&&reply.value!=(sequence_==1?0u:4u))||
     (step_==2&&reply.value!=sequence_-1))return state_=WriteState::Rejected;
  if(step_==11){

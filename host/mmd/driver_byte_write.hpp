@@ -17,7 +17,8 @@ class DriverByteWrite final {
   DriverByteWrite(int fd, mailbox::Port& port, std::uint64_t base,
                   std::uint64_t aperture, Request request,
                   std::uint32_t first_sequence,
-                  DmaReceiptRead reader=nullptr,DmaReceiptRead writer=nullptr)
+                  DmaReceiptRead reader=nullptr,DmaReceiptRead writer=nullptr,
+                  memory::WriteCompletion completion=memory::WriteCompletion::BackendAcceptance)
     :plan_(memory::plan_write(aperture,request.destination_offset,
                              request.staging,request.size)) {
     if(request.kind!=Kind::Write || !plan_.valid || !request.size){
@@ -34,7 +35,7 @@ class DriverByteWrite final {
       const auto& s=plan_.segments[i];
       if(s.route==memory::WriteRoute::MaskedWord){
         words_[i]=std::make_unique<memory::ByteWrite>(port,base,aperture,
-          s.device_address,s.data,s.mask,first_sequence+edge++);
+          s.device_address,s.data,s.mask,first_sequence+edge++,completion);
         if(words_[i]->state()==memory::WriteState::Rejected)state_=State::Rejected;
       }else{
         auto bulk=request;bulk.size=s.bytes;bulk.destination_offset=s.device_address;

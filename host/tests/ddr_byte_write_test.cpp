@@ -4,6 +4,7 @@
 #include <vector>
 using namespace asus::a10;
 struct Port:mailbox::Port {
+ std::uint32_t signature=0x42595701;
  unsigned calls=0,fail=~0u,commands=0;bool complete=false,stale=false;
  std::vector<std::pair<std::uint64_t,std::uint32_t>> writes;
  mailbox::Reply result(std::uint32_t value=0){return {calls++==fail?mailbox::Outcome::Unknown:mailbox::Outcome::Completed,value};}
@@ -12,7 +13,7 @@ struct Port:mailbox::Port {
  }
  mailbox::Reply read32(std::uint64_t a)noexcept override{
   assert(a==1024||a==1028||a==1056);
-  return result(a==1024?0x42595701:a==1028?(commands?(complete?4:1):0):(commands?(stale?0:1):0));
+  return result(a==1024?signature:a==1028?(commands?(complete?4:1):0):(commands?(stale?0:1):0));
  }
  mailbox::Reply fence()noexcept override{return result();}
 };
@@ -33,5 +34,16 @@ int main(){
  Port q;q.complete=true;q.stale=true;W stale(q,1024,0x80000000,0,1,1,1);
  while(stale.state()==S::Progress)stale.advance();assert(stale.state()==S::Unknown);
  Port bad;W invalid(bad,1024,0x80000000,0x80000000,1,1,1);assert(invalid.advance()==S::Rejected&&!bad.calls);
+ for(auto mode:{memory::WriteCompletion::BackendAcceptance,memory::WriteCompletion::SelectedByteReadback}){
+  for(bool match:{false,true}){
+   Port v;v.complete=true;v.signature=static_cast<std::uint32_t>(mode);
+   if(!match)v.signature=mode==memory::WriteCompletion::BackendAcceptance?0x42595702:0x42595701;
+   W x(v,1024,0x80000000,0,1,1,1,mode);
+   while(x.state()==S::Progress)x.advance();
+   assert(x.state()==(match?S::Complete:S::Rejected));
+   assert(x.readback_verified()==(match&&mode==memory::WriteCompletion::SelectedByteReadback));
+   assert(v.commands==unsigned(match));
+  }
+ }
  std::cout<<"DDR_BYTE_WRITE_HOST_PASS ordered command_once delayed_completion stale_id failures=13 bounds\n";
 }
