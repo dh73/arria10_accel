@@ -29,9 +29,9 @@ sycl::event copy(sycl::queue& queue, const std::uint32_t* input,
   return queue.single_task<Copy>([=] {
     const std::uint64_t blocks = std::uint64_t(count) / 16;
     for (std::uint64_t block = 0; block < blocks; ++block) {
-#pragma unroll
-      for (int lane = 0; lane < 16; ++lane)
-        dst[block * 16 + lane] = src[block * 16 + lane];
+      sycl::vec<std::uint32_t, 16> value;
+      value.load(block, static_cast<const std::uint32_t*>(src));
+      value.store(block, static_cast<std::uint32_t*>(dst));
     }
     for (std::uint64_t i = blocks * 16; i < count; ++i) dst[i] = src[i];
   });
@@ -46,11 +46,11 @@ sycl::event triad(sycl::queue& queue, const std::uint32_t* input_a,
   return queue.single_task<Triad>([=] {
     const std::uint64_t blocks = std::uint64_t(count) / 16;
     for (std::uint64_t block = 0; block < blocks; ++block) {
-#pragma unroll
-      for (int lane = 0; lane < 16; ++lane) {
-        const std::uint64_t i = block * 16 + lane;
-        dst[i] = a[i] + b[i] * scale;
-      }
+      sycl::vec<std::uint32_t, 16> va, vb;
+      va.load(block, static_cast<const std::uint32_t*>(a));
+      vb.load(block, static_cast<const std::uint32_t*>(b));
+      const auto value = va + vb * scale;
+      value.store(block, static_cast<std::uint32_t*>(dst));
     }
     for (std::uint64_t i = blocks * 16; i < count; ++i)
       dst[i] = a[i] + b[i] * scale;
