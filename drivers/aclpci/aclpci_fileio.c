@@ -175,8 +175,9 @@ static int identity_mmio_read(void *context, unsigned int offset, aclpci_id_u32 
   if (a->control_owner != owner || !a->io_blocked) return -EPERM;
   if ((offset & 3) || offset >= ACLPCI_ID_BYTES ||
       !a->bar[ACLPCI_PLATFORM_CONTROL_BAR] ||
-      a->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] < ACLPCI_ID_BYTES) return -ERANGE;
-  *value = ioread32(a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + offset);
+      a->bar_length[ACLPCI_PLATFORM_CONTROL_BAR] <
+      ACLPCI_PLATFORM_IDENTITY_BASE + ACLPCI_ID_BYTES) return -ERANGE;
+  *value = ioread32(a->bar[ACLPCI_PLATFORM_CONTROL_BAR] + ACLPCI_PLATFORM_IDENTITY_BASE + offset);
   return 0;
 }
 enum aclpci_identity_code aclpci_control_identity_capture(struct aclpci_file *owner,

@@ -5,6 +5,7 @@
  * These control writes belong to kernel lifecycle ownership. Raw userspace
  * access must not acknowledge drain or reopen hardware admission. */
 #define ACLPCI_PLATFORM_CONTROL_BAR 2
+#define ACLPCI_PLATFORM_IDENTITY_BASE 256
 #define ACLPCI_PLATFORM_FENCE_BASE 512
 #define ACLPCI_PLATFORM_FENCE_BYTES 40
 #define ACLPCI_PLATFORM_COMMAND_BASE 576

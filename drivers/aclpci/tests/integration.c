@@ -1272,19 +1272,22 @@ static void test_identity_discovery_mmio(void)
     unsigned mode,reads,writes;
     for(mode=0;mode<8;++mode) {
         struct aclpci_identity_raw raw;
+        u32 *identity=bar4+ACLPCI_PLATFORM_IDENTITY_BASE/4;
         init_engine();device.io_blocked=true;device.dma_data.contract_valid=false;
         device.bar[2]=bar4;device.bar_length[2]=sizeof bar4;
         memset(bar4,0,sizeof bar4);
-        bar4[0]=ACLPCI_ID_MAGIC;bar4[1]=ACLPCI_ID_V2;bar4[2]=2;
-        bar4[3]=256;bar4[4]=bar4[5]=31;bar4[6]=7;
+        /* Mailbox at zero is intentionally not an identity header. */
+        bar4[0]=0xdeadcafe;
+        identity[0]=ACLPCI_ID_MAGIC;identity[1]=ACLPCI_ID_V2;identity[2]=2;
+        identity[3]=256;identity[4]=identity[5]=31;identity[6]=7;
         down(&device.sem);assert(!aclpci_control_claim(&file));
         if(mode==1)device.removed=true;
         if(mode==2)device.online=false;
         if(mode==3)file.closed=true;
         if(mode==4)device.pr_in_progress=true;
         if(mode==5)device.io_blocked=false;
-        if(mode==6)device.bar_length[2]=255;
-        if(mode==7)bar4[0]=0;
+        if(mode==6)device.bar_length[2]=ACLPCI_PLATFORM_IDENTITY_BASE+ACLPCI_ID_BYTES-1;
+        if(mode==7)identity[0]=0;
         reads=test.mmio_reads;writes=test.mmio_writes;
         assert(aclpci_control_identity_capture(&file,&raw)==
             (mode==0?ACLPCI_ID_CONSISTENT:mode==7?ACLPCI_ID_UNSUPPORTED:ACLPCI_ID_IO_FAILURE));
