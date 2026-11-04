@@ -1,4 +1,5 @@
 #include "adapter.hpp"
+#include "driver_receipt.hpp"
 #include <array>
 #include <condition_variable>
 #include <mutex>
@@ -92,15 +93,31 @@ int main() {
   input[0]='X'; fake->finish(); CHECK(flush_ready(h));
   CHECK(fake->memory[8]=='t' && state.calls==2); // staged write owns original bytes
   CHECK(aocl_mmd_read(h,nullptr,5,output,7,SIZE_MAX)<0);
+  // Error receipts release adapter staging but must not copy read data to caller.
+  const int prior_calls=state.calls;
+  std::memset(output,'?',sizeof(output));
+  CHECK(aocl_mmd_read(h,&state,5,output,7,0)==0);
+  DriverReceiptCompletion gate(42,fake->request.ticket,fake->completion);
+  DmaReceipt receipt;receipt.state=DmaReceiptState::Drained;
+  receipt.submitted=41;receipt.completed=41;
+  CHECK(gate.observe(receipt)==DriverReceiptCompletion::Result::Retained);
+  receipt.state=DmaReceiptState::Pending;receipt.submitted=42;
+  CHECK(gate.observe(receipt)==DriverReceiptCompletion::Result::Retained);
+  CHECK(flush_ready(h));CHECK(state.calls==prior_calls);
+  receipt.state=DmaReceiptState::Drained;receipt.completed=42;receipt.result=-125;
+  CHECK(gate.observe(receipt)==DriverReceiptCompletion::Result::Delivered);
+  CHECK(gate.observe(receipt)==DriverReceiptCompletion::Result::AlreadyDelivered);
+  CHECK(flush_ready(h));CHECK(state.calls==prior_calls+1 && state.status==-125);
+  for(char c:output)CHECK(c=='?');
   fake->early=true; state.reenter=true;
-  CHECK(aocl_mmd_read(h,&state,1,output,7,0)==0); CHECK(flush_ready(h)); CHECK(state.calls==4);
+  CHECK(aocl_mmd_read(h,&state,1,output,7,0)==0); CHECK(flush_ready(h)); CHECK(state.calls==5);
   fake->early=false; fake->outcome=Submission::NotAccepted;
-  CHECK(aocl_mmd_write(h,&state,1,input,7,0)<0); CHECK(flush_ready(h)); CHECK(state.calls==4);
+  CHECK(aocl_mmd_write(h,&state,1,input,7,0)<0); CHECK(flush_ready(h)); CHECK(state.calls==5);
   fake->throws=true;
   CHECK(aocl_mmd_read(h,&state,1,output,7,0)<0); CHECK(flush_ready(h));
   CHECK(aocl_mmd_close(h)<0 && !fake->closed);
   CHECK(aocl_mmd_write(h,nullptr,1,input,7,0)<0); // offline
-  fake->finish(); CHECK(flush_ready(h)); CHECK(state.calls==4); // orphan: never callback
+  fake->finish(); CHECK(flush_ready(h)); CHECK(state.calls==5); // orphan: never callback
   CHECK(aocl_mmd_close(h)==0 && fake->closed);
   CHECK(aocl_mmd_close(h)<0); CHECK(install_backend(nullptr));
   // Quiesce races an actual adapter-to-transport handoff. No timed sleeps.
