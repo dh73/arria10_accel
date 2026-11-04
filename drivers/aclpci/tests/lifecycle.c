@@ -154,7 +154,7 @@ static void irq_order_and_kernel_once(void)
     puts("PASS IRQ init/release ordering, exact IRQ number and one kernel signal per arm");
 }
 
-static void retained_remove(void)
+static void retained_remove(bool control_debt)
 {
     struct pci_dev bridge = { .refs = 1 };
     struct pci_bus bus = { .self = &bridge };
@@ -165,7 +165,8 @@ static void retained_remove(void)
     test_contract = true;
     assert(probe(&p, &aclpci_ids[0]) == 0);
     a = p.data;
-    a->dma_data.active = true;
+    a->dma_data.active = !control_debt;
+    a->control_debt = control_debt;
     module_refs = 1; /* The request's independent file context module pin. */
     order_count = 0;
     order[0] = 0;
@@ -175,7 +176,7 @@ static void retained_remove(void)
     assert(!irq_requested && !p.msi && !node_objects && !cdev_objects);
     assert(dma_objects == 3 && mapped_bars == 2 && heap_objects == 2);
     assert(a->ref.refs == 1 && p.refs == 2 && bridge.refs == 2);
-    assert(module_refs == 2 && strstr(order, "TMSFIDQ"));
+    assert(module_refs == 2 && strstr(order, control_debt ? "TMSFIQ" : "TMSFIDQ"));
     assert(probe(&p, &aclpci_ids[0]) == -EBUSY);
     struct pci_dev rescan = endpoint(&bus);
     assert(probe(&rescan, &aclpci_ids[0]) == -EBUSY);
@@ -207,7 +208,8 @@ int main(void)
     faults();
     blocked_and_references();
     irq_order_and_kernel_once();
-    retained_remove();
+    retained_remove(false);
+    retained_remove(true);
     aclpci_exit();
     return 0;
 }

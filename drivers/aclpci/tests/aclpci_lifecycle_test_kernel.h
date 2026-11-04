@@ -116,6 +116,8 @@ struct pci_driver {
 };
 struct aclpci_dma { bool contract_valid, initialized, active; void *wq, *tables[2]; };
 struct aclpci_dev {
+    struct aclpci_file *control_owner;
+    bool control_debt;
     struct kref ref;
     bool online, removed, io_blocked, saved_state, irq_registered, msi_enabled, quarantined;
     int irq_number;

@@ -211,6 +211,7 @@ static inline void module_put(void *p) { (void)p; assert(test.module_refs); --te
 #define ACL_UNIPHYRESET_OFFSET 0xcfd0
 #define DMA_ALIGNMENT_BYTE_MASK 63
 #define ACLPCI_CMD_BAR 23
+#define ACLPCI_CMD_DMA_STOP 19
 #define ACLPCI_DMA_BAR 25
 #define ACLPCI_CMD_SET_SIGNAL_PAYLOAD 12
 #define ACLPCI_CMD_ENABLE_KERNEL_IRQ 14
@@ -234,6 +235,8 @@ static inline void disable_irq(int n) { (void)n; ++test.irq_disables; }
 static inline void enable_irq(int n) { (void)n; ++test.irq_enables; }
 #include "../aclpci_dma.h"
 struct aclpci_dev {
+    struct aclpci_file *control_owner;
+    bool control_debt;
     struct pci_dev *pci_dev;
     struct aclpci_dma dma_data;
     void *bar[5];

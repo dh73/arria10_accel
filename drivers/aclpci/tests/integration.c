@@ -844,6 +844,62 @@ static void test_file_open_close_and_pending_owner(void)
     finish_engine();
     puts("PASS fileio: real open unwind/multiple closes; real last close retains request context and module/device/task refs without flushing its worker");
 }
+static void test_exclusive_control_custody(void)
+{
+    struct inode inode = { .i_cdev = &cdev, .minor = 0 };
+    struct file first = {0}, second = {0};
+    struct aclpci_file *owner, *peer;
+    struct acl_cmd command = { .bar_id = 2, .size = 4 };
+    unsigned int writes, reads, flushes;
+    init_engine();
+    device.dma_data.contract_valid = false;
+    device.io_blocked = true;
+    assert(!aclpci_open(&inode, &first));
+    assert(!aclpci_open(&inode, &second));
+    owner = first.private_data; peer = second.private_data;
+    down(&device.sem);
+    assert(!aclpci_control_claim(owner));
+    assert(owner->ref.refs == 2 && !device.dma_data.contract_valid);
+    assert(aclpci_control_claim(peer) == -EBUSY);
+    assert(aclpci_control_mark_issued(peer) == -EPERM);
+    assert(aclpci_control_release_unused(peer) == -EPERM);
+    up(&device.sem);
+    writes = test.mmio_writes; reads = test.mmio_reads;
+    assert(aclpci_read(&second, (char *)&command, 4, NULL) == -EBUSY);
+    assert(aclpci_read(&first, (char *)&command, 4, NULL) == -EOPNOTSUPP);
+    command.bar_id = ACLPCI_CMD_BAR;
+    command.command = ACLPCI_CMD_DMA_STOP;
+    assert(aclpci_read(&second, (char *)&command, 4, NULL) == -EBUSY);
+    assert(test.mmio_writes == writes && test.mmio_reads == reads);
+    assert(!aclpci_close(&inode, &first)); /* Never-issued claim releases. */
+    assert(!device.control_owner && !device.control_debt);
+    down(&device.sem);
+    assert(!aclpci_control_claim(peer));
+    assert(!aclpci_control_mark_issued(peer));
+    assert(aclpci_control_release_unused(peer) == -EBUSY);
+    up(&device.sem);
+    flushes = test.flushes;
+    assert(!aclpci_close(&inode, &second));
+    assert(device.control_owner == peer && peer->closed && peer->ref.refs == 1);
+    assert(test.device_refs == 2 && test.module_refs == 1);
+    assert(test.flushes == flushes && !device.dma_data.active);
+    assert(!aclpci_open(&inode, &first));
+    owner = first.private_data;
+    down(&device.sem);
+    assert(aclpci_control_claim(owner) == -EBUSY);
+    assert(aclpci_control_mark_issued(peer) == -ENODEV);
+    up(&device.sem);
+    assert(!aclpci_close(&inode, &first));
+    assert(device.control_owner == peer && device.control_debt);
+    /* Mock fixture disposal ONLY. No production debt-clear API exists. */
+    device.control_owner = NULL;
+    device.control_debt = false;
+    aclpci_file_put(peer);
+    assert(test.device_refs == 1 && !test.module_refs);
+    finish_engine();
+    puts("PASS control custody: exclusive retained file, blocked startup, zero authority, unused close release, issued close retains without worker flush");
+}
+
 static void test_file_after_unbind_and_protected_io(void)
 {
     struct inode inode = { .i_cdev = &cdev, .minor = 0 };
@@ -1115,6 +1171,7 @@ int main(void)
     test_engine_bad_status_and_bounds();
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
-    puts("PASS all fourteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    test_exclusive_control_custody();
+    puts("PASS all fifteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }

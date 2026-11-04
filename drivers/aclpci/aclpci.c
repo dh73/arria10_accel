@@ -518,7 +518,7 @@ static void remove(struct pci_dev *dev)
   /* Existing file contexts remain valid objects but every I/O sees ENODEV.
    * Close cannot deadlock the completion worker, which never takes sem. */
   release_irq(dev, a);
-  error = aclpci_dma_finish(a);
+  error = a->control_debt ? -EBUSY : aclpci_dma_finish(a);
   aclpci_set_signal_task(a, NULL);
   if (error) {
     a->quarantined = true;
@@ -530,7 +530,7 @@ static void remove(struct pci_dev *dev)
      * This does not veto driver-core removal or preserve an IOMMU domain. */
     __module_get(THIS_MODULE);
     /* Keep base ref, mappings, tables, BAR reservations and device allocation. */
-    dev_err(&dev->dev, "unretired DMA retained; PCI remove cannot veto IOMMU teardown; platform containment is required, rebinding is forbidden\n");
+    dev_err(&dev->dev, "unretired DMA/control custody retained; PCI remove cannot veto IOMMU teardown; platform containment is required, rebinding is forbidden\n");
     return;
   }
   pci_set_drvdata(dev, NULL);

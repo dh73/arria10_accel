@@ -155,6 +155,9 @@ struct aclpci_dev {
   bool irq_registered;
   bool msi_enabled;
   bool quarantined;
+  /* Device sem protects exclusive lifecycle custody, retained beyond close. */
+  struct aclpci_file *control_owner;
+  bool control_debt;
   int irq_number;
   struct list_head quarantine_link;
   /* sem serializes process-context I/O, open, close and remove. The DMA
@@ -250,6 +253,13 @@ void* aclpci_get_checked_addr (int bar_id, void *device_addr, size_t count,
 struct aclpci_dev *aclpci_get_by_minor(unsigned int minor, struct cdev *expected);
 void aclpci_put(struct aclpci_dev *aclpci);
 void aclpci_set_signal_task(struct aclpci_dev *aclpci, struct task_struct *task);
+/* Internal lifecycle prerequisite, not image qualification or admission.
+ * All calls require device sem. Mark debt BEFORE any possibly issued control
+ * operation. Only never-issued custody can be released; no reset-safe debt
+ * discharge contract is supplied yet. */
+int aclpci_control_claim(struct aclpci_file *owner);
+int aclpci_control_mark_issued(struct aclpci_file *owner);
+int aclpci_control_release_unused(struct aclpci_file *owner);
 void aclpci_file_get(struct aclpci_file *owner);
 void aclpci_file_put(struct aclpci_file *owner);
 void load_signal_info (struct aclpci_dev *aclpci);

@@ -140,6 +140,56 @@ void aclpci_file_put(struct aclpci_file *owner)
   kref_put(&owner->ref, aclpci_file_release_ref);
 }
 
+/* Internal lifecycle custody. sem spans these calls and the control operation.
+ * The extra file reference preserves device/module lifetime on uncertain close.
+ * Neither a successful mailbox response nor DMA idle discharges control debt. */
+int aclpci_control_claim(struct aclpci_file *owner)
+{
+  struct aclpci_dev *a;
+  int result = 0;
+  if (!owner) return -EINVAL;
+  a = owner->aclpci;
+  if (!a->online || a->removed || owner->closed) return -ENODEV;
+  if (a->control_owner) return -EBUSY;
+  if (!a->io_blocked || a->pr_in_progress || !a->dma_data.initialized)
+    return -EBUSY;
+  mutex_lock(&a->dma_data.lock);
+  if (a->dma_data.active || a->dma_data.fault || a->control_debt)
+    result = -EBUSY;
+  else {
+    aclpci_file_get(owner);
+    a->control_owner = owner;
+  }
+  mutex_unlock(&a->dma_data.lock);
+  return result;
+}
+
+int aclpci_control_mark_issued(struct aclpci_file *owner)
+{
+  struct aclpci_dev *a;
+  if (!owner) return -EINVAL;
+  a = owner->aclpci;
+  if (!a->online || a->removed || owner->closed) return -ENODEV;
+  if (a->control_owner != owner) return -EPERM;
+  if (!a->io_blocked || a->pr_in_progress) return -EBUSY;
+  /* Sticky even when the subsequent MMIO result is uncertain. This does not
+   * authorize MMIO: image/reset admission must still be checked separately. */
+  a->control_debt = true;
+  return 0;
+}
+
+int aclpci_control_release_unused(struct aclpci_file *owner)
+{
+  struct aclpci_dev *a;
+  if (!owner) return -EINVAL;
+  a = owner->aclpci;
+  if (a->control_owner != owner) return -EPERM;
+  if (a->control_debt) return -EBUSY;
+  a->control_owner = NULL;
+  aclpci_file_put(owner);
+  return 0;
+}
+
 int aclpci_open(struct inode *inode, struct file *file)
 {
   struct aclpci_file *owner;
@@ -204,6 +254,8 @@ int aclpci_close(struct inode *inode, struct file *file)
   /* release must finish its bookkeeping even when the caller has a signal. */
   down(&aclpci->sem);
   owner->closed = true;
+  if (aclpci->control_owner == owner)
+    aclpci_control_release_unused(owner); /* Debt intentionally retains custody. */
   --aclpci->num_handles_open;
   if (!aclpci->num_handles_open) {
     if (aclpci->online) {
@@ -523,6 +575,11 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
     goto done;
 	}
 
+  /* A competing handle cannot issue lifecycle commands such as DMA_STOP. */
+  if (aclpci->control_owner && aclpci->control_owner != owner) {
+    result = -EBUSY;
+    goto done;
+  }
   size = kcmd.size;
   if (kcmd.bar_id == ACLPCI_CMD_BAR) {
     /* The legacy payload-setting case is outside the supplied excerpts.
