@@ -259,3 +259,11 @@ add_executable(a10_platform_closed_startup_test tests/platform_closed_startup_te
 target_link_libraries(a10_platform_closed_startup_test PRIVATE a10_platform_closed_startup)
 target_compile_options(a10_platform_closed_startup_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME a10_platform_closed_startup COMMAND a10_platform_closed_startup_test)
+
+add_library(a10_aclpci_startup_client STATIC src/aclpci_startup_client.cpp)
+target_include_directories(a10_aclpci_startup_client PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+target_compile_options(a10_aclpci_startup_client PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_aclpci_startup_client_test tests/aclpci_startup_client_test.cpp)
+target_include_directories(a10_aclpci_startup_client_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+target_link_libraries(a10_aclpci_startup_client_test PRIVATE a10_aclpci_startup_client)
+add_test(NAME a10_aclpci_startup_client COMMAND a10_aclpci_startup_client_test)
