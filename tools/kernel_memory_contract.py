@@ -60,9 +60,43 @@ def extract(source):
         physical_acceptance=False)
 
 
+# Source-audited OpenCL chain: kernel_system forwards mem0_rw unchanged;
+# streaming_di configures AWIDTH41/MWIDTH_BYTES8 and forwards the interconnect;
+# lsu_ic_top reconstructs byte addresses by appending LOG2BYTES zero bits.
+# This binds units only, not capacity, semantics of arbitrary future generators,
+# physical compatibility or peak bandwidth.
+OPENCL_BYTE_ADDRESS_SHA256 = {'ipinterfaces.xml': '1d393f74b0d3b22fc6ff7cda08babf334f1fddf1d1f3b83751ca3658f4bace9c',
+ 'kernel_system.sv': '67277c71492551efa9bf31b23184115ccfff247b5fc8cba3804a481d420ff033',
+ 'streaming_di.sv': '2a1982a5f663794a371cc5310d11829d4b406ee1a177520a5072d68d2fcbd414',
+ 'ip/lsu_ic_top.sv': '0055b4e37914420969b45d4bb0db294e6d593c6a2f58a5956cf0167410f6be96'}
+
+
+def qualify_opencl_byte_addresses(source, report):
+    source = Path(source)
+    for name, expected in OPENCL_BYTE_ADDRESS_SHA256.items():
+        if hashlib.sha256((source/name).read_bytes()).hexdigest() != expected:
+            raise ValueError('unqualified OpenCL address-chain source: '+name)
+    # Re-extract so a caller-supplied dimension report cannot confer a profile.
+    exact = extract(source)
+    if exact != report or len(exact['memories']) != 1:
+        raise ValueError('address profile requires exact source dimension report')
+    memory = exact['memories'][0]
+    if (memory['port'],memory['data_bits'],memory['address_bits']) != ('mem0_rw',64,41):
+        raise ValueError('address profile dimensions changed')
+    memory['address_units'] = 'bytes'
+    exact['scope'] = 'generated dimensions and exact source-bound byte-address chain'
+    exact['address_profile'] = 'opencl_stream_byte_address_v1'
+    exact['source_sha256'].update(OPENCL_BYTE_ADDRESS_SHA256)
+    return exact
+
+
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source',type=Path)
     parser.add_argument('output',type=Path)
+    parser.add_argument('--opencl-byte-address-profile',action='store_true')
     args=parser.parse_args()
-    args.output.write_text(json.dumps(extract(args.source),indent=2)+'\n')
+    report=extract(args.source)
+    if args.opencl_byte_address_profile:
+        report=qualify_opencl_byte_addresses(args.source,report)
+    args.output.write_text(json.dumps(report,indent=2)+'\n')
