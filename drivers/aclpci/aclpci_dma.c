@@ -465,6 +465,32 @@ int aclpci_dma_supervisor_service(struct aclpci_dev *aclpci,
     return result;
 }
 
+int aclpci_dma_close_publication(struct aclpci_dev *a, struct aclpci_file *owner,
+                                 u64 *generation)
+{
+    struct aclpci_dma *d = &a->dma_data;
+    int result = 0;
+    if (!generation) return -EINVAL;
+    *generation = 0;
+    if (!owner || a->control_owner != owner) return -EPERM;
+    /* sem excludes syscall producers; the lock below joins a worker that
+     * might already be publishing. Future workers see io_blocked before any
+     * new table. Do not send hardware STOP before the ordered closure marker. */
+    WRITE_ONCE(a->io_blocked, true);
+    if (!d->initialized) return -ENODEV;
+    mutex_lock(&d->lock);
+    if (owner->closed || !a->online || a->removed || a->pr_in_progress ||
+        !d->contract_valid || d->fault)
+        result = -ESTALE;
+    else {
+        a->control_debt = true;
+        if (d->active) aclpci_dma_request_stop(&d->request);
+        *generation = d->publication_generation;
+    }
+    mutex_unlock(&d->lock);
+    return result;
+}
+
 static int context_mmio_check(struct aclpci_dev *a, unsigned int offset)
 {
     if (!a->online || a->removed || a->pr_in_progress) return -ENODEV;

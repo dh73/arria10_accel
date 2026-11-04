@@ -101,4 +101,8 @@ int aclpci_dma_supervisor_service(struct aclpci_dev *, struct aclpci_supervisor_
  * image/reset contract. Neither operation enables host submission. */
 int aclpci_dma_startup_arm(struct aclpci_dev *, struct aclpci_file *, const u32 context[6], u64 id);
 int aclpci_dma_startup_service(struct aclpci_dev *, struct aclpci_file *);
+/* Under sem, close software producers and capture publication generation.
+ * Active DMA remains owned. This is NOT a PCIe ordering/drain certificate;
+ * an ordered, context-bound hardware closure handshake must follow. */
+int aclpci_dma_close_publication(struct aclpci_dev *, struct aclpci_file *, u64 *generation);
 #endif

@@ -1302,8 +1302,42 @@ static void test_identity_discovery_mmio(void)
     puts("PASS identity discovery: owned bounded read-only BAR2 capture without DMA admission");
 }
 
+static void test_close_publication(void)
+{
+    unsigned queued;
+    for(queued=0;queued<2;++queued) {
+        u64 generation=99;unsigned reads,writes;
+        init_engine();device.io_blocked=true;
+        down(&device.sem);assert(!aclpci_control_claim(&file));up(&device.sem);
+        device.io_blocked=false; /* Qualified running fixture, not production admission. */
+        assert(!aclpci_dma_rw(&device,&file,(void *)0x200000,(void *)0x100000,256*PAGE_SIZE,0));
+        assert(device.dma_data.active&&test.doorbells==1);
+        if(queued){write_completion(1);aclpci_dma_service_interrupt(&device);}
+        reads=test.mmio_reads;writes=test.mmio_writes;
+        down(&device.sem);
+        assert(aclpci_dma_close_publication(&device,NULL,&generation)==-EPERM);
+        assert(!device.io_blocked);
+        assert(!aclpci_dma_close_publication(&device,&file,&generation));
+        assert(generation==1&&device.io_blocked&&device.control_debt);
+        up(&device.sem);
+        assert(test.mmio_reads==reads&&test.mmio_writes==writes&&!test.unmaps);
+        assert(device.dma_data.active&&test.coherent_live==2);
+        if(queued)run_work();else complete_with_irq();
+        assert(!device.dma_data.active&&device.dma_data.async_result==-ECANCELED);
+        assert(test.doorbells==1&&device.dma_data.publication_generation==generation);
+        assert(device.control_debt&&test.signal_count==1);
+        /* Mock fixture disposal only; neither retirement nor software closure
+         * is a production control-debt release certificate. */
+        down(&device.sem);device.control_debt=false;
+        assert(!aclpci_control_release_unused(&file));up(&device.sem);
+        finish_engine();
+    }
+    puts("PASS publication closure: queued continuation cannot submit, active mapping retained until retirement, no MMIO closure claim");
+}
+
 int main(void)
 {
+    test_close_publication();
     test_identity_capture_failures();
     test_identity_discovery_mmio();
     test_kernel_startup_mmio();
@@ -1323,6 +1357,6 @@ int main(void)
     test_file_open_close_and_pending_owner();
     test_file_after_unbind_and_protected_io();
     test_exclusive_control_custody();
-    puts("PASS all nineteen executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
+    puts("PASS all twenty executable suites (mock kernel/MMIO; not a native kernel or hardware qualification)");
     return 0;
 }
