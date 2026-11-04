@@ -150,3 +150,12 @@ or end-to-end application throughput. Runtime staging and caching can affect
 what the event measures. Physical comparison requires the same workload size,
 transfer policy, image identity and validated runtime on both platforms, plus
 repeated measurements and independent link/traffic evidence.
+
+Streaming mode additionally reports `OPENCL_HOST_WORKLOAD_TIMING` using the
+host's monotonic clock. Each count covers host input initialization, buffer
+allocation, uploads, argument setup, output poisoning, copy and triad execution,
+blocking readbacks, numerical verification, and intervening result reporting.
+The interval ends after both workloads pass. It excludes platform discovery,
+context/program creation, binary loading, and buffer destruction; it is not
+whole-process startup latency. This duration is separate from device-event
+rates and cannot establish PCIe wire utilization or physical DDR bandwidth.

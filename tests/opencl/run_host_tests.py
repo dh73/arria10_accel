@@ -44,6 +44,11 @@ command.append('--streaming')
 r,stream_calls=run('stream-success',{},0)
 rows=re.findall(r'OPENCL_STREAM_DATA_PASS kernel=(copy|triad) count=(\d+) elapsed_ns=200 algorithm_bytes=(\d+) algorithm_GBps=([\d.e+-]+)',r.stdout)
 assert len(rows)==14
+host_rows=re.findall(r'OPENCL_HOST_WORKLOAD_TIMING count=(\d+) elapsed_ns=(\d+) scope=allocation_upload_copy_triad_readback_verification',r.stdout)
+assert len(host_rows)==7
+assert {int(n) for n,_ in host_rows}=={1,3,17,257,4093,65537,1000003}
+assert all(int(ns)>0 for _,ns in host_rows)
+
 transfers=re.findall(r'OPENCL_TRANSFER_TIMING direction=(h2d|d2h)(?: kernel=(?:copy|triad))? count=(\d+) bytes=(\d+) elapsed_ns=(\d+) payload_GBps=([\d.e+-]+)',r.stdout)
 assert len(transfers)==28
 for direction,n,byte_count,elapsed,rate in transfers:

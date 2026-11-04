@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <chrono>
 #include <limits>
 #include <fstream>
 #include <iostream>
@@ -111,6 +112,7 @@ void run(cl_context context, cl_command_queue queue, cl_kernel first, cl_kernel 
 }
 void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
                 cl_kernel triad, cl_uint n, size_t resolution) {
+  const auto host_start=std::chrono::steady_clock::now();
   std::vector<cl_uint> a(n),b(n),out(n);
   for(cl_uint i=0;i<n;++i){a[i]=i*0x9e3779b1U+0x80000000U;b[i]=~(i*17U);}
   const size_t bytes=size_t(n)*sizeof(cl_uint);
@@ -149,6 +151,9 @@ void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
              <<" count="<<n<<" bytes="<<bytes<<" elapsed_ns="<<(read.end-read.start)
              <<" payload_GBps="<<(double(bytes)/double(read.end-read.start))<<'\n';
   }
+  const auto host_end=std::chrono::steady_clock::now();
+  const auto host_ns=std::chrono::duration_cast<std::chrono::nanoseconds>(host_end-host_start).count();
+  if(host_ns<=0)throw std::runtime_error("Nonpositive host workload duration");
   // Publish upload rates only after both dependent workloads passed readback.
   for(auto event:{upload_a.value,upload_b.value}){
     const auto t=timing(event,resolution);
@@ -156,6 +161,8 @@ void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
              <<" elapsed_ns="<<(t.end-t.start)
              <<" payload_GBps="<<(double(bytes)/double(t.end-t.start))<<'\n';
   }
+  std::cout<<"OPENCL_HOST_WORKLOAD_TIMING count="<<n<<" elapsed_ns="<<host_ns
+           <<" scope=allocation_upload_copy_triad_readback_verification"<<'\n';
 }
 }
 int main(int argc,char** argv) {
