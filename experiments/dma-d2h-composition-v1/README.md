@@ -223,3 +223,24 @@ The configured derivative elaborates 357 modules with 107 source pins checked
 and no new design-warning signatures. Existing warnings remain unresolved.
 This does not qualify bidirectional simulation, fault handling by a containing
 supervisor, posted-write ordering or host visibility.
+
+## Ordered fetch integration candidate
+
+`compose_ordered_fetch.py` combines this generated retirement hierarchy with the
+source-qualified fetch composition. It replaces exactly two members: the native
+read engine with current-count request sizing, and the consumer with ordered
+per-destination table queues. The remaining 22 generated hierarchy files are
+byte-identical. The complete input manifest and both replacement hashes are
+checked before output is created; original directories remain untouched.
+
+```sh
+python3 experiments/dma-d2h-composition-v1/compose_ordered_fetch.py \
+  --parent "$D2H_PARENT_GENERATED" \
+  --fetch "$ORDERED_FETCH_GENERATED" \
+  --out "$ORDERED_DUPLEX_GENERATED"
+```
+
+Use a fresh output directory outside Git. This establishes reproducible source
+composition only. Combined elaboration, simultaneous bidirectional simulation,
+shared-memory contention, host visibility and physical acceptance require their
+own results. The generator keeps production admission disabled in its receipt.
