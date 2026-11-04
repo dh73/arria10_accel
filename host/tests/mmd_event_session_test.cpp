@@ -13,8 +13,12 @@ void receipt_fixture_stop();void receipt_fixture_complete();void receipt_fixture
 }
 using namespace asus::a10;using namespace asus::a10::mmd;
 static int completion_fd;static bool fail_receipt;static unsigned receipt_reads;
+static void* read_buffer;static std::size_t read_bytes;
 static ssize_t rd(int fd,void* p,std::size_t n){assert(fd==completion_fd);
  if(static_cast<acl_cmd*>(p)->command==ACLPCI_CMD_DMA_RECEIPT){++receipt_reads;if(fail_receipt)return -1;}
+ if(static_cast<acl_cmd*>(p)->command==ACLPCI_CMD_DMA_SUBMIT){
+  read_buffer=static_cast<acl_cmd*>(p)->user_addr;read_bytes=static_cast<acl_cmd*>(p)->size;
+ }
  return receipt_fixture_read(p,n);}
 static ssize_t wr(int fd,void* p,std::size_t n){assert(fd==completion_fd);return receipt_fixture_write(p,n);}
 // Only hardware and kernel primitives are simulated by the retained C fixture.
@@ -85,6 +89,13 @@ int main(){
  assert(status.calls==3&&aocl_mmd_close(status.handle)<0);
  receipt_fixture_complete();d->event();assert(flush_ready(status.handle));
  assert(status.calls==4&&!status.result);
+ std::memset(bytes,0x55,4);
+ assert(!aocl_mmd_read(status.handle,&status,3,bytes,7,0x200001));
+ assert(read_bytes==4);
+ for(unsigned i=0;i<4;++i)static_cast<unsigned char*>(read_buffer)[i]=i+1;
+ for(auto byte:bytes)assert(byte==0x55);
+ receipt_fixture_complete();d->event();assert(flush_ready(status.handle));
+ assert(status.calls==5&&!status.result&&bytes[0]==2&&bytes[1]==3&&bytes[2]==4&&bytes[3]==0x55);
  assert(!aocl_mmd_close(status.handle));assert(install_backend(nullptr));receipt_fixture_finish();
  d.reset();factory.reset();
  // Receipt failure after an actual driver retirement: keep ownership, stop
