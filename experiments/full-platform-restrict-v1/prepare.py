@@ -1,12 +1,17 @@
 """Stage the non-aliasing generated kernels in the retained PCIe workload."""
 from pathlib import Path
-import hashlib,json,re
+import hashlib,json,re,argparse
 R=Path(__file__).resolve().parents[2]
-base=R/'qualification/full-platform-fetch-context-v1'
-sim=R/'qualification/sycl-stream-restrict-sim-v1'
-gen=R/'qualification/sycl-stream-restrict-local-v1/work/workload-es3-early.prj'
-cra=R/'qualification/sycl-stream-restrict-cra-v1'
-out=R/'qualification/full-platform-restrict-v1'
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--variant',choices=['restrict','masked'],default='restrict')
+parser.add_argument('--base',type=Path,default=R/'qualification/full-platform-fetch-context-v1')
+parser.add_argument('--out',type=Path)
+args=parser.parse_args()
+base=args.base.resolve()
+sim=R/f'qualification/sycl-stream-{args.variant}-sim-v1'
+gen=R/f'qualification/sycl-stream-{args.variant}-local-v1/work/workload-es3-early.prj'
+cra=R/f'qualification/sycl-stream-{args.variant}-cra-v1'
+out=(args.out or R/f'qualification/full-platform-{args.variant}-v1').resolve()
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 pins=json.loads((base/'sources.json').read_text())
 assert json.loads((base/'result.json').read_text())['state']=='passed'
@@ -25,7 +30,7 @@ for name in pins:
   q.write_bytes(p.read_bytes().replace(str(base).encode(),str(out).encode()));q.chmod(p.stat().st_mode&0o777)
 for name in ['synopsys_sim.setup','vhdlan-container.sh','route_vlogan.py','build.sh','run_native.py','worker.py','commands.json','routing.json','bin/vlogan','bin/vhdlan']:
  p=base/name;q=out/name;q.parent.mkdir(parents=True,exist_ok=True)
- q.write_text(p.read_text().replace(str(base),str(out)).replace('Full platform bound fetch context v1','Full platform restrict kernels v1'));q.chmod(p.stat().st_mode&0o777)
+ q.write_text(p.read_text().replace(str(base),str(out)).replace('Full platform bound fetch context v1',f'Full platform {args.variant} kernels v1').replace('Full platform BAR2 upstream closure v2',f'Full platform {args.variant} kernels with BAR2 closure v1'));q.chmod(p.stat().st_mode&0o777)
 (out/'models').symlink_to((base/'models').resolve(),target_is_directory=True)
 (out/'bin/vcs').symlink_to('/home/diego1/bin/scripts/vcf')
 r=json.loads((out/'routing.json').read_text())
