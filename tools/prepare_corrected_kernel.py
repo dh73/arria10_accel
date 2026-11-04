@@ -11,6 +11,7 @@ import shutil
 
 from cra_read_clear_safe import generate
 from kernel_abi import extract
+from check_cra_sources import check as check_cra_sources
 
 
 def prepare(root, output):
@@ -45,6 +46,7 @@ def prepare(root, output):
     hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     (output / 'source-hashes.json').write_text(json.dumps(hashes, indent=2) + '\n')
     (output / 'abi.json').write_text(json.dumps(abi, indent=2) + '\n')
+    check_cra_sources(p for p in inputs if p.name.endswith("_function_cra_agent.sv"))
     # Publish the compile entry only after all checks and ABI preparation pass.
     (output / 'sources.f').write_text('\n'.join(lines) + '\n')
 

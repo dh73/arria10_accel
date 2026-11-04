@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import cra_read_clear_safe as repair
+from check_cra_sources import check as check_cra_sources
 
 PINS = {
     'stream_copy512': ('a11d7be4c514e2d7152f09d00d31ff795c1f9a55fada7a0f7f225f01f36430ce', 106,
@@ -46,6 +47,7 @@ def prepare(source, output):
         target = output / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+    check_cra_sources(output / rel for rel in candidates)
     result = {'profile': 'delayed_snapshot_v1', 'physical_acceptance': False,
               'files': {str(p): hashlib.sha256(b).hexdigest() for p, b in candidates.items()}}
     (output / 'manifest.json').write_text(json.dumps(result, indent=2) + '\n')
