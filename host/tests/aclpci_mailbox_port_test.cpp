@@ -49,6 +49,16 @@ int main(){
  AclPciPort good(91,0x1000,io);
  for(auto a:{0xffcull,0x1001ull,0x1020ull,~0ull}) assert(good.read32(a).outcome==Outcome::NotIssued);
  assert(calls==0);
+ // Enlarging the window must be explicit; invalid spans issue no syscall.
+ for(auto span:{0ull,20ull,25ull,~0ull}) {
+  AclPciPort bad(91,0x1000,io,span);
+  assert(bad.read32(0x1000).outcome==Outcome::NotIssued);
+ }
+ AclPciPort overflow(91,~0ull-31,io,40);
+ assert(overflow.fence().outcome==Outcome::NotIssued && calls==0);
+ AclPciPort wider(91,0x1000,io,40);
+ assert(wider.read32(0x1028).outcome==Outcome::NotIssued && calls==0);
+ assert(wider.read32(0x1000).outcome==Outcome::Completed && calls==1);
  // Every syscall boundary in the full mailbox operation can execute then fail.
  for(bool read:{false,true}) {
   reset();AclPciPort r(91,0x1000,io);Sequencer reference(r,0x1000);

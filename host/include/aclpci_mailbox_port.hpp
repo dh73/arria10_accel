@@ -9,13 +9,15 @@ namespace asus::a10::mailbox {
 class AclPciPort final : public Port {
  public:
   using Call = ssize_t (*)(int, void*, std::size_t, bool) noexcept;
-  AclPciPort(int fd, std::uint64_t mailbox_base, Call call = native) noexcept;
+  // Explicit verified aperture; includes a non-destructive ordered read at +20.
+  AclPciPort(int fd, std::uint64_t mailbox_base, Call call = native,
+             std::uint64_t aperture_bytes = 32) noexcept;
   Reply write32(std::uint64_t, std::uint32_t) noexcept override;
   Reply read32(std::uint64_t) noexcept override;
   Reply fence() noexcept override;
  private:
   static ssize_t native(int, void*, std::size_t, bool) noexcept;
   Reply access(std::uint64_t, std::uint32_t, bool) noexcept;
-  int fd_; std::uint64_t base_; Call call_; bool valid_, poisoned_{false};
+  int fd_; std::uint64_t base_, aperture_bytes_; Call call_; bool valid_, poisoned_{false};
 };
 }
