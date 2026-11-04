@@ -18,8 +18,13 @@ assert len(removed)==213 and sum(x['direction']=='input' for x in removed)==75
 assert head.count('module platform_c126_shell #(')==1
 newhead='\n'.join(kept).replace('module platform_c126_shell #(','module platform_c126_hardware_io #(')
 # Keep every independent safety input; no fake admission/reset certificate.
-for name in ['platform_health_valid','platform_reset_containment_valid','platform_upstream_closed','common_cold_reset_n']:
+for name in ['platform_health_valid','platform_reset_containment_valid','common_cold_reset_n']:
     assert name in newhead,name
+# The qualified BAR2 closure composition exports its result internally.
+if 'platform_upstream_closed' not in newhead:
+    assert 'wire platform_upstream_closed;' in body
+    assert '.upstream_closed_pcie(platform_upstream_closed)' in body
+    assert '.HostUpstreamClosed_i(platform_upstream_closed)' in body
 out.mkdir(exist_ok=False);f=out/'platform_c126_hardware_io.sv'
 f.write_text(newhead+');\n'+ '\n'.join(internal)+'\n'+body)
 (out/'result.json').write_text(json.dumps({'state':'prepared','source':str(source.resolve()),'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'output_sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'internalized':removed,'native_elaboration':False,'physical_acceptance':False,'requires':['exact ES3 generated HIP hardware-mode qualification','conditioned reset and upstream closure implementation','synthesis fit and all-corner timing']},indent=2)+'\n')
