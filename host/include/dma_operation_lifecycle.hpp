@@ -143,6 +143,12 @@ struct Snapshot {
   std::uint64_t stale_events{0};
 
   bool dispatcher_stopped{false};
+  // Generation-bound HOST admission observation, sampled under the lifecycle
+  // lock. No Prepared/indeterminate/blocking handoff remains and begin is
+  // closed. Accepted operations may still own buffers and posted writes.
+  // Combine with actual transport admission closure; never use as DMA drain.
+  // A new generation invalidates this observation.
+  bool submissions_settled{false};
 };
 
 // Internal proposed host API. It deliberately performs no device register,

@@ -567,6 +567,9 @@ class OperationLifecycle::Impl final {
     result.duplicate_events = duplicate_events_;
     result.stale_events = stale_events_;
     result.dispatcher_stopped = stopped_;
+    result.submissions_settled = mode_ != DeviceMode::Running &&
+        result.prepared == 0 && result.blocking_in_flight == 0 &&
+        result.orphan_holds == 0;
     return result;
   }
 

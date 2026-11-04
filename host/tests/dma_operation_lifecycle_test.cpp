@@ -221,8 +221,10 @@ void test_quiesce_does_not_fake_drain() {
   const auto submission_racing_quiesce =
       lifecycle.begin(token(0x501), 7, BufferOwner::CallerOwned);
   CHECK(accepted.prepared() && submission_racing_quiesce.prepared());
+  CHECK(!lifecycle.snapshot().submissions_settled);
   CHECK(lifecycle.accept(accepted.ticket) == TransitionCode::Applied);
   CHECK(lifecycle.quiesce(-1001) == TransitionCode::Applied);
+  CHECK(!lifecycle.snapshot().submissions_settled);
 
   // A launch that was already reserved may report acceptance after the gate.
   // The quiesce-assigned terminal state follows it into Accepted, but no
@@ -233,6 +235,7 @@ void test_quiesce_does_not_fake_drain() {
 
   CHECK(recorder.copy().empty());
   CHECK(lifecycle.snapshot().accepted_debt == 2);
+  CHECK(lifecycle.snapshot().submissions_settled);
   CHECK(lifecycle.begin(token(0x502), 20, BufferOwner::CallerOwned).code ==
         BeginCode::RejectedQuiescing);
 
@@ -293,7 +296,9 @@ void test_stale_generation_isolation() {
   lifecycle.flush_ready();
 
   CHECK(lifecycle.quiesce(-3001) == TransitionCode::Applied);
+  CHECK(lifecycle.snapshot().submissions_settled);
   CHECK(lifecycle.start_new_generation() == TransitionCode::Applied);
+  CHECK(!lifecycle.snapshot().submissions_settled);
   const auto current =
       lifecycle.begin(token(0x700), 10, BufferOwner::CallerOwned);
   CHECK(current.prepared());
@@ -333,6 +338,7 @@ void test_submission_failure_and_indeterminate_submission() {
   CHECK(lifecycle.snapshot().accepted_total == 0);
   CHECK(lifecycle.snapshot().accepted_debt == 0);
   CHECK(lifecycle.snapshot().orphan_holds == 1);
+  CHECK(!lifecycle.snapshot().submissions_settled);
   CHECK(recorder.copy().back().kind == "hold");
 
   CHECK(lifecycle.note_global_drained(uncertain.ticket.generation) ==
@@ -465,12 +471,14 @@ void test_blocking_mode() {
   CHECK(state.accepted_debt == 0);
   CHECK(state.active_leases == 1);
   CHECK(lifecycle.quiesce(-5001) == TransitionCode::Applied);
+  CHECK(!lifecycle.snapshot().submissions_settled);
   CHECK(lifecycle.begin(nullptr, 20, BufferOwner::CallerOwned).code ==
         BeginCode::RejectedQuiescing);
   CHECK(lifecycle.shutdown() == TransitionCode::DebtRemaining);
 
   CHECK(lifecycle.finish_blocking(blocking.ticket) == TransitionCode::Applied);
   lifecycle.flush_ready();
+  CHECK(lifecycle.snapshot().submissions_settled);
   const auto events = recorder.copy();
   CHECK(events.size() == 1);
   CHECK(events[0].kind == "release" && events[0].lease == 19);
