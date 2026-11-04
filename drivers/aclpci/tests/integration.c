@@ -818,6 +818,28 @@ static void test_file_after_unbind_and_protected_io(void)
         assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -EPERM);
         command.size = 4;
     }
+    /* Every byte of both lifecycle windows is kernel-owned, including
+     * partial writes crossing their start/end. Adjacent ports are untouched. */
+    command.bar_id = ACLPCI_PLATFORM_CONTROL_BAR;
+    for (i = 0; i < 2; ++i) {
+        unsigned long start = i ? ACLPCI_PLATFORM_COMMAND_BASE : ACLPCI_PLATFORM_FENCE_BASE;
+        unsigned int length = i ? ACLPCI_PLATFORM_COMMAND_BYTES : ACLPCI_PLATFORM_FENCE_BYTES;
+        unsigned int byte;
+        for (byte = 0; byte < length; ++byte) {
+            command.device_addr = (void *)(start + byte);
+            command.size = 1;
+            assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -EPERM);
+        }
+        command.device_addr = (void *)(start - 1);
+        command.size = 2;
+        assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -EPERM);
+        command.size = 1;
+        assert(!protected_write(&command, 1));
+        command.device_addr = (void *)(start + length);
+        assert(!protected_write(&command, 1));
+    }
+    assert(test.mmio_writes == before);
+    command.size = 4;
     command.bar_id = 0;
     command.device_addr = (void *)ACL_PCIE_DMA_RD_LAST_PTR;
     assert(aclpci_write(&fd, (char *)&command, sizeof(command), NULL) == -EPERM);

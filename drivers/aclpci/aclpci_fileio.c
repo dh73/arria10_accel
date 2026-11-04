@@ -452,9 +452,18 @@ static bool overlaps(unsigned long offset, size_t bytes,
          (offset >= start || bytes > start - offset);
 }
 
+#include "platform_control_abi.h"
+
 static bool protected_write(const struct acl_cmd *cmd, size_t size)
 {
   unsigned long offset = (unsigned long)cmd->device_addr;
+
+  if (cmd->bar_id == ACLPCI_PLATFORM_CONTROL_BAR &&
+      (overlaps(offset, size, ACLPCI_PLATFORM_FENCE_BASE,
+                ACLPCI_PLATFORM_FENCE_BYTES) ||
+       overlaps(offset, size, ACLPCI_PLATFORM_COMMAND_BASE,
+                ACLPCI_PLATFORM_COMMAND_BYTES)))
+    return true;
 
   if (cmd->bar_id == ACL_PCIE_DMA_INTERNAL_BAR &&
       (overlaps(offset, size, ACL_PCIE_DMA_INTERNAL_CTR_BASE +
