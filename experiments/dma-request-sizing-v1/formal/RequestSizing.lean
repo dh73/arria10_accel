@@ -41,6 +41,34 @@ theorem no_page_crossing (offset r m : Nat) (h : offset < 1024) :
   have bound := page_bound r m (1024 - offset)
   omega
 
+-- The existing producer supports limits up to 128 DWORDs. Even if widened
+-- later, every positive limit below 1024 excludes the special zero encoding.
+theorem length_field_exact (r m p : Nat) (hm : m < 1024) :
+    size r m p % 1024 = size r m p := by
+  have bound := mrrs_bound r m p
+  apply Nat.mod_eq_of_lt
+  omega
+
+theorem length_field_nonzero (r m p : Nat)
+    (hr : 0 < r) (hm : 0 < m) (hp : 0 < p) (limit : m < 1024) :
+    size r m p % 1024 ≠ 0 := by
+  rw [length_field_exact r m p limit]
+  have bound := positive r m p hr hm hp
+  omega
+
+-- Exact DWORD-to-byte conservation uses natural arithmetic; address registers
+-- still need a separately checked no-overflow admission condition.
+theorem byte_step (total issued remaining m p : Nat)
+    (h : issued + remaining = total) :
+    4 * (issued + size remaining m p) +
+      4 * (remaining - size remaining m p) = 4 * total := by
+  have conserved := step total issued remaining m p h
+  omega
+
+#print axioms length_field_exact
+#print axioms length_field_nonzero
+#print axioms byte_step
+
 -- A delayed selector that chooses a newly loaded count violates the contract.
 theorem stale_selector_witness : ¬ (1000 ≤ (32 : Nat)) := by decide
 

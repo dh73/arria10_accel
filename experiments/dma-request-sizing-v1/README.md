@@ -13,6 +13,8 @@ request; a registered selection from an earlier remaining count is insufficient.
 | BASE conservation | Zero issued | Proven |
 | STEP conservation | Issued + remaining = total; one accepted request | Proven |
 | No 4 KiB crossing | DWORD offset below 1024 | Proven |
+| Exact, nonzero 10-bit length | Positive inputs; MRRS below 1024 DWORDs | Proven |
+| Byte-count STEP conservation | DWORD conservation; four bytes per DWORD | Proven |
 | Stale-selector counterexample | Selected length 1000, limit 32 | Violates bound |
 
 State is `(issued, remaining)`. Each accepted request increments issued and
