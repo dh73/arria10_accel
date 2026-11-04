@@ -118,8 +118,9 @@ void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
   for(auto entry:{&ba,&bb,&bo}){
     entry->value=clCreateBuffer(context,CL_MEM_READ_WRITE,bytes,nullptr,&error);check(error,"stream buffer");
   }
-  check(clEnqueueWriteBuffer(queue,ba.value,CL_TRUE,0,bytes,a.data(),0,nullptr,nullptr),"stream write a");
-  check(clEnqueueWriteBuffer(queue,bb.value,CL_TRUE,0,bytes,b.data(),0,nullptr,nullptr),"stream write b");
+  Event upload_a,upload_b;
+  check(clEnqueueWriteBuffer(queue,ba.value,CL_TRUE,0,bytes,a.data(),0,nullptr,&upload_a.value),"stream write a");
+  check(clEnqueueWriteBuffer(queue,bb.value,CL_TRUE,0,bytes,b.data(),0,nullptr,&upload_b.value),"stream write b");
   cl_mem copy_args[]={ba.value,bo.value},triad_args[]={ba.value,bb.value,bo.value};
   for(cl_uint j=0;j<2;++j)check(clSetKernelArg(copy,j,sizeof(cl_mem),&copy_args[j]),"copy buffer arg");
   check(clSetKernelArg(copy,2,sizeof(n),&n),"copy count");
@@ -130,18 +131,30 @@ void run_stream(cl_context context, cl_command_queue queue, cl_kernel copy,
   for(int pass=0;pass<2;++pass){
     std::fill(out.begin(),out.end(),0xa5a5a5a5U);
     check(clEnqueueWriteBuffer(queue,bo.value,CL_TRUE,0,bytes,out.data(),0,nullptr,nullptr),"stream poison");
-    Event event;const size_t one=1;
+    Event event,download;const size_t one=1;
     check(clEnqueueNDRangeKernel(queue,pass?triad:copy,1,nullptr,&one,&one,0,nullptr,&event.value),"stream enqueue");
-    check(clEnqueueReadBuffer(queue,bo.value,CL_TRUE,0,bytes,out.data(),1,&event.value,nullptr),"stream readback");
+    check(clEnqueueReadBuffer(queue,bo.value,CL_TRUE,0,bytes,out.data(),1,&event.value,&download.value),"stream readback");
     check(clFinish(queue),"stream finish");
     for(cl_uint i=0;i<n;++i){
       auto expected=pass?static_cast<cl_uint>(std::uint64_t(a[i])+std::uint64_t(b[i])*scale):a[i];
       if(out[i]!=expected)throw std::runtime_error("Streaming mismatch index="+std::to_string(i));
     }
-    const auto t=timing(event.value,resolution);const std::uint64_t traffic=std::uint64_t(n)*(pass?12:8);
+    const auto t=timing(event.value,resolution),read=timing(download.value,resolution);
+    if(read.start<t.end)throw std::runtime_error("Readback timestamps overlap producing kernel");
+    const std::uint64_t traffic=std::uint64_t(n)*(pass?12:8);
     std::cout<<"OPENCL_STREAM_DATA_PASS kernel="<<(pass?"triad":"copy")<<" count="<<n
              <<" elapsed_ns="<<(t.end-t.start)<<" algorithm_bytes="<<traffic
              <<" algorithm_GBps="<<(double(traffic)/double(t.end-t.start))<<'\n';
+    std::cout<<"OPENCL_TRANSFER_TIMING direction=d2h kernel="<<(pass?"triad":"copy")
+             <<" count="<<n<<" bytes="<<bytes<<" elapsed_ns="<<(read.end-read.start)
+             <<" payload_GBps="<<(double(bytes)/double(read.end-read.start))<<'\n';
+  }
+  // Publish upload rates only after both dependent workloads passed readback.
+  for(auto event:{upload_a.value,upload_b.value}){
+    const auto t=timing(event,resolution);
+    std::cout<<"OPENCL_TRANSFER_TIMING direction=h2d count="<<n<<" bytes="<<bytes
+             <<" elapsed_ns="<<(t.end-t.start)
+             <<" payload_GBps="<<(double(bytes)/double(t.end-t.start))<<'\n';
   }
 }
 }

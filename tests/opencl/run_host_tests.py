@@ -18,7 +18,7 @@ subprocess.run([a.cxx,'-std=c++17','-O2','-Wall','-Wextra','-Werror','-I'+str(a.
 command=[str(build/'host'),'--physical',str(build/'fixture.bin'),'fixture','fixture-device']
 def run(name,env,expected):
     clean=os.environ.copy()
-    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS','SMALL_ALLOC','SMALL_MEMORY','TIMER_RESOLUTION'):clean.pop(key,None)
+    for key in ('FAIL_AT','DUPLICATE','BAD_BINARY','CORRUPT','BAD_TIME','BAD_ALIGN','CORRUPT_PASS','SMALL_ALLOC','SMALL_MEMORY','TIMER_RESOLUTION','BAD_TRANSFER_TIME'):clean.pop(key,None)
     r=subprocess.run(command,env=dict(clean,**env),text=True,capture_output=True)
     (build/(name+'.log')).write_text(r.stdout+r.stderr)
     assert r.returncode==expected,(name,r.returncode,r.stderr)
@@ -44,6 +44,14 @@ command.append('--streaming')
 r,stream_calls=run('stream-success',{},0)
 rows=re.findall(r'OPENCL_STREAM_DATA_PASS kernel=(copy|triad) count=(\d+) elapsed_ns=200 algorithm_bytes=(\d+) algorithm_GBps=([\d.e+-]+)',r.stdout)
 assert len(rows)==14
+transfers=re.findall(r'OPENCL_TRANSFER_TIMING direction=(h2d|d2h)(?: kernel=(?:copy|triad))? count=(\d+) bytes=(\d+) elapsed_ns=(\d+) payload_GBps=([\d.e+-]+)',r.stdout)
+assert len(transfers)==28
+for direction,n,byte_count,elapsed,rate in transfers:
+    assert int(byte_count)==int(n)*4
+    assert int(elapsed)==(200 if direction=='h2d' else 300)
+    assert abs(float(rate)-int(byte_count)/int(elapsed))<=max(1e-6,int(byte_count)/int(elapsed)*1e-5)
+for value in (1,2,3):run('transfer-time-'+str(value),{'BAD_TRANSFER_TIME':str(value)},1)
+
 for kind,n,byte_count,rate in rows:
     assert int(byte_count)==int(n)*(8 if kind=='copy' else 12)
     assert abs(float(rate)-int(byte_count)/200)<=max(1e-6,int(byte_count)/200*1e-5)

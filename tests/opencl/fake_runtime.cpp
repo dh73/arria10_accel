@@ -38,7 +38,7 @@ cl_int clBuildProgram(cl_program,cl_uint,const cl_device_id*,const char*,void(CL
 cl_int clGetProgramBuildInfo(cl_program,cl_device_id,cl_program_build_info,size_t n,void* out,size_t* size){return str("fixture build failure",n,out,size);}
 cl_kernel clCreateKernel(cl_program,const char* name,cl_int* e){auto k=create<cl_kernel>(e);if(k)k->name=name;return k;}
 cl_mem clCreateBuffer(cl_context,cl_mem_flags,size_t n,void* host,cl_int* e){assert(!host);auto m=create<cl_mem>(e);if(m){assert(n%sizeof(cl_uint)==0);m->data.resize(n/sizeof(cl_uint));}return m;}
-cl_int clEnqueueWriteBuffer(cl_command_queue,cl_mem m,cl_bool block,size_t off,size_t n,const void* source,cl_uint waits,const cl_event*,cl_event*){assert(block && !waits && off+n<=m->data.size()*sizeof(cl_uint));if(fail())return CL_OUT_OF_RESOURCES;std::memcpy(reinterpret_cast<unsigned char*>(m->data.data())+off,source,n);return CL_SUCCESS;}
+cl_int clEnqueueWriteBuffer(cl_command_queue,cl_mem m,cl_bool block,size_t off,size_t n,const void* source,cl_uint waits,const cl_event*,cl_event* event){assert(block && !waits && off+n<=m->data.size()*sizeof(cl_uint));if(fail())return CL_OUT_OF_RESOURCES;std::memcpy(reinterpret_cast<unsigned char*>(m->data.data())+off,source,n);if(event){*event=new _cl_event{5};++live;}return CL_SUCCESS;}
 cl_int clSetKernelArg(cl_kernel k,cl_uint index,size_t n,const void* value){
   if(fail())return CL_OUT_OF_RESOURCES;
   bool copy=k->name=="stream_copy512",triad=k->name=="stream_triad512";
@@ -61,11 +61,16 @@ cl_int clEnqueueNDRangeKernel(cl_command_queue,cl_kernel k,cl_uint dim,const siz
   else for(unsigned i=0;i<k->count;++i)out[i]=pass==3?a[i]:static_cast<cl_uint>(std::uint64_t(a[i])+std::uint64_t(b[i])*k->scale);
   *result=new _cl_event{pass};++live;return CL_SUCCESS;
 }
-cl_int clEnqueueReadBuffer(cl_command_queue,cl_mem m,cl_bool block,size_t off,size_t n,void* out,cl_uint waits,const cl_event* deps,cl_event*){assert(block && waits==1 && deps[0]->pass>=2 && off+n<=m->data.size()*sizeof(cl_uint));if(fail())return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;std::memcpy(out,reinterpret_cast<unsigned char*>(m->data.data())+off,n);if(number("CORRUPT") || number("CORRUPT_PASS")==deps[0]->pass)static_cast<unsigned char*>(out)[0]^=1;return CL_SUCCESS;}
+cl_int clEnqueueReadBuffer(cl_command_queue,cl_mem m,cl_bool block,size_t off,size_t n,void* out,cl_uint waits,const cl_event* deps,cl_event* event){assert(block && waits==1 && deps[0]->pass>=2 && off+n<=m->data.size()*sizeof(cl_uint));if(fail())return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;std::memcpy(out,reinterpret_cast<unsigned char*>(m->data.data())+off,n);if(number("CORRUPT") || number("CORRUPT_PASS")==deps[0]->pass)static_cast<unsigned char*>(out)[0]^=1;if(event){*event=new _cl_event{6};++live;}return CL_SUCCESS;}
 cl_int clGetEventProfilingInfo(cl_event e,cl_profiling_info field,size_t n,void* out,size_t*) {
   assert(n==sizeof(cl_ulong) && out);
   if(fail())return CL_PROFILING_INFO_NOT_AVAILABLE;
   cl_ulong start=e->pass==1?100:250, end=e->pass==1?200:450;
+  if(e->pass==5){start=10;end=210;}
+  if(e->pass==6){start=500;end=800;}
+  if(number("BAD_TRANSFER_TIME")==1 && e->pass==5)end=start;
+  if(number("BAD_TRANSFER_TIME")==2 && e->pass==6)end=start;
+  if(number("BAD_TRANSFER_TIME")==3 && e->pass==6)start=400;
   if(number("BAD_TIME")==1)end=start;
   if(number("BAD_TIME")==2)end=start-1;
   if(number("BAD_TIME")==3 && e->pass==2)start=150;

@@ -133,3 +133,20 @@ reported capacity bounds, not a fixed workload cap. Runtime allocation may
 still fail because memory is shared or reserved; such failures remain errors.
 The element ABI is uint32 and host byte-size arithmetic is checked. Larger
 working sets alone do not prove external-memory traffic or peak bandwidth.
+
+## Transfer timing
+
+Streaming mode also reports `OPENCL_TRANSFER_TIMING` for the two input uploads
+and each verified output download. `bytes = 4 * count`; `payload_GBps` divides
+that payload by the transfer event's START-to-END duration in nanoseconds.
+Download timing must follow its producing kernel. All durations must be
+positive and at least the reported device timer resolution. Upload rates are
+printed only after both copy and triad readbacks pass.
+
+These are individual blocking OpenCL command rates. They exclude allocation,
+API submission, poison writes and verification; they do not establish PCIe
+wire utilization, simultaneous bidirectional throughput, sustained saturation
+or end-to-end application throughput. Runtime staging and caching can affect
+what the event measures. Physical comparison requires the same workload size,
+transfer policy, image identity and validated runtime on both platforms, plus
+repeated measurements and independent link/traffic evidence.
