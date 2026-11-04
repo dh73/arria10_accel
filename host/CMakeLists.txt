@@ -19,6 +19,13 @@ target_link_libraries(a10_kernel_mailbox_test PRIVATE a10_kernel_mailbox)
 target_compile_options(a10_kernel_mailbox_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME a10_kernel_mailbox COMMAND a10_kernel_mailbox_test)
 
+add_library(a10_host_writeback_fence STATIC src/host_writeback_fence.cpp)
+target_link_libraries(a10_host_writeback_fence PUBLIC a10_kernel_mailbox)
+target_compile_options(a10_host_writeback_fence PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_host_writeback_fence_test tests/host_writeback_fence_test.cpp)
+target_link_libraries(a10_host_writeback_fence_test PRIVATE a10_host_writeback_fence)
+add_test(NAME a10_host_writeback_fence COMMAND a10_host_writeback_fence_test)
+
 add_library(a10_aclpci_mailbox_port STATIC src/aclpci_mailbox_port.cpp)
 target_link_libraries(a10_aclpci_mailbox_port PUBLIC a10_kernel_mailbox)
 target_include_directories(a10_aclpci_mailbox_port PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
