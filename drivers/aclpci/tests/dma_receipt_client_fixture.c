@@ -29,3 +29,7 @@ void receipt_fixture_complete(void) {
     assert(test.unmaps && test.unpins);
 }
 void receipt_fixture_finish(void) { finish_engine(); }
+
+long receipt_fixture_write(void *cmd, unsigned long bytes) {
+    return aclpci_write(&client_fd,cmd,bytes,NULL);
+}

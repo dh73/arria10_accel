@@ -276,3 +276,8 @@ add_executable(a10_dma_receipt_test tests/aclpci_dma_receipt_test.cpp)
 target_link_libraries(a10_dma_receipt_test PRIVATE a10_dma_receipt)
 target_include_directories(a10_dma_receipt_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
 add_test(NAME a10_dma_receipt COMMAND a10_dma_receipt_test)
+
+add_library(a10_dma_client STATIC src/aclpci_dma_client.cpp)
+target_link_libraries(a10_dma_client PUBLIC a10_dma_receipt)
+target_include_directories(a10_dma_client PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../drivers/aclpci")
+target_compile_options(a10_dma_client PRIVATE -Wall -Wextra -Wpedantic -Werror)
