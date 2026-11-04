@@ -237,3 +237,11 @@ add_executable(a10_platform_context_provision_test tests/platform_context_provis
 target_link_libraries(a10_platform_context_provision_test PRIVATE a10_platform_context_provision)
 target_compile_options(a10_platform_context_provision_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME a10_platform_context_provision COMMAND a10_platform_context_provision_test)
+
+add_library(a10_platform_startup STATIC src/platform_startup.cpp)
+target_link_libraries(a10_platform_startup PUBLIC a10_platform_context_provision a10_platform_open)
+target_compile_options(a10_platform_startup PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(a10_platform_startup_test tests/platform_startup_test.cpp)
+target_link_libraries(a10_platform_startup_test PRIVATE a10_platform_startup)
+target_compile_options(a10_platform_startup_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME a10_platform_startup COMMAND a10_platform_startup_test)
