@@ -758,7 +758,7 @@ static ssize_t aclpci_rw(struct file *file, char __user *buf,
         result = -EINVAL;
         goto done;
       }
-      result = aclpci_dma_rw(aclpci, owner, kcmd.device_addr,
+      result = aclpci_dma_rw_events(aclpci, owner, kcmd.device_addr,
                              (void __user *)kcmd.user_addr, size, reading);
       goto done;
     }

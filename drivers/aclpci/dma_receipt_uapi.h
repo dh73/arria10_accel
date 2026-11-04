@@ -20,7 +20,8 @@
 /* Explicit asynchronous DMA, using acl_cmd device_addr/user_addr/size and
  * read/write direction. No PIO fallback; native byte order only. Size and
  * addresses must meet the driver's DMA constraints. Zero return is acceptance,
- * not completion; consume the matching DMA_RECEIPT before buffer reuse. */
+ * not completion; consume the matching DMA_RECEIPT before buffer reuse.
+ * Completion is poll/epoll plus receipt only: no legacy process signal. */
 #define ACLPCI_CMD_DMA_SUBMIT 22
 #define ACLPCI_CMD_DMA_RECEIPT 21
 #define ACLPCI_DMA_RECEIPT_VERSION 1

@@ -293,6 +293,8 @@ int aclpci_dma_get_idle_status(struct aclpci_dev *aclpci);
 ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,
                       void *dev_addr, void __user *user_addr,
                       ssize_t len, int reading);
+ssize_t aclpci_dma_rw_events(struct aclpci_dev *, struct aclpci_file *,
+                            void *, void __user *, ssize_t, int);
 irqreturn_t aclpci_dma_service_interrupt (struct aclpci_dev *aclpci);
 
 /* aclpci_cmd.c functions */

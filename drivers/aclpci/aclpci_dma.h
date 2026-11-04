@@ -66,6 +66,7 @@ struct aclpci_dma {
     struct aclpci_file *owner;
     struct task_struct *task;
     struct kernel_siginfo signal;
+    bool legacy_signal;
     u64 ticket;
     /* Coherent descriptor tables outlive individual requests. A successful
      * request status does not authorize destroying these shared resources. */

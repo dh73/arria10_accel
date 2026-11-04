@@ -52,6 +52,7 @@ struct dma_completion {
     struct aclpci_file *owner;
     struct task_struct *task;
     struct kernel_siginfo signal;
+    bool legacy_signal;
 };
 
 static void __iomem *dma_regs(struct aclpci_dev *aclpci)
@@ -121,7 +122,8 @@ static void notify_completion(struct dma_completion *done)
      * holds d->lock so notification precedes acceptance of the next request.
      * file_put is a context kref put, never fput or a worker flush. */
     wake_up_interruptible(&done->owner->dma_completion_wait);
-    send_sig_info(SIG_INT_NOTIFY, &done->signal, done->task);
+    if (done->legacy_signal)
+        send_sig_info(SIG_INT_NOTIFY, &done->signal, done->task);
     put_task_struct(done->task);
     aclpci_file_put(done->owner);
 }
@@ -144,6 +146,7 @@ static int complete_locked(struct aclpci_dma *d, struct dma_completion *done)
     done->owner = d->owner;
     done->task = d->task;
     done->signal = d->signal;
+    done->legacy_signal = d->legacy_signal;
     done->signal.si_errno = result < 0 ? -result : 0;
     d->owner = NULL;
     d->task = NULL;
@@ -712,9 +715,9 @@ static int preflight(struct aclpci_dma_request *r,
     return 0;
 }
 
-ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,
+static ssize_t dma_rw_mode(struct aclpci_dev *aclpci, struct aclpci_file *owner,
                      void *dev_addr, void __user *user_addr,
-                     ssize_t len, int reading)
+                     ssize_t len, int reading, bool legacy_signal)
 {
     struct aclpci_dma *d = &aclpci->dma_data;
     struct aclpci_user_dma *mapping = NULL;
@@ -785,6 +788,7 @@ ssize_t aclpci_dma_rw(struct aclpci_dev *aclpci, struct aclpci_file *owner,
     d->task = current;
     get_task_struct(d->task);
     d->signal = aclpci->signal_info_dma;
+    d->legacy_signal = legacy_signal;
     error = submit_locked(d);
     if (error) {
         put_task_struct(d->task);
@@ -804,4 +808,18 @@ release_unsubmitted:
 unlock:
     mutex_unlock(&d->lock);
     return error;
+}
+
+/* Legacy raw DMA callers retain their captured process-signal ABI. */
+ssize_t aclpci_dma_rw(struct aclpci_dev *a, struct aclpci_file *owner,
+                     void *address, void __user *buffer, ssize_t bytes, int reading)
+{
+    return dma_rw_mode(a, owner, address, buffer, bytes, reading, true);
+}
+/* Explicit submissions use file-scoped events and exact retirement receipts;
+ * they must not deliver an unhandled legacy signal to an epoll-based runtime. */
+ssize_t aclpci_dma_rw_events(struct aclpci_dev *a, struct aclpci_file *owner,
+                            void *address, void __user *buffer, ssize_t bytes, int reading)
+{
+    return dma_rw_mode(a, owner, address, buffer, bytes, reading, false);
 }

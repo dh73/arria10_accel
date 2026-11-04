@@ -39,6 +39,7 @@ void receipt_fixture_complete(void) {
     assert(file.dma_completion_wait.wakes==wakes+1);
     assert(aclpci_poll(&client_fd,NULL)==(EPOLLIN|EPOLLRDNORM));
     assert(test.unmaps && test.unpins);
+    assert(!test.signal_count); /* Explicit DMA is event/receipt-only. */
 }
 void receipt_fixture_finish(void) { finish_engine(); }
 
