@@ -10,7 +10,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from kernel_abi import extract
-from kernel_executor_codegen import render, unique_object, validate
+from kernel_executor_codegen import render, unique_object, validate, source_contract_sha256
 
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / 'tests/fixtures/generated-kernel-abi.json'
@@ -61,6 +61,8 @@ class CodegenTests(unittest.TestCase):
         self.abi = json.loads(SNAPSHOT.read_text(), object_pairs_hook=unique_object)
 
     def test_snapshot_identity_and_shape(self):
+        self.assertEqual(source_contract_sha256(self.abi),
+                         'e9a5c334bb2bf9ab545f92a6fea0789b02cb2ea0c89cdf247e5eb4219b0e037d')
         data = render(self.abi, True)
         self.assertIn('SourceValidation::SuppliedSnapshot', data)
         for path, digest in self.abi['source_sha256'].items():
@@ -92,6 +94,79 @@ class CodegenTests(unittest.TestCase):
             mutation(value)
             with self.assertRaises(ValueError):
                 validate(value)
+
+    def packed(self):
+        abi = copy.deepcopy(self.abi)
+        abi['schema'] = 2
+        for kernel in abi['kernels']:
+            kernel['arguments'] = [
+                dict(name='count', size=4, kind='ACL_ARG_BY_VALUE', rtl_bit_offset=0,
+                     pieces=[dict(byte_offset=128, register_bit_offset=0,
+                                  argument_bit_offset=0, bits=32)]),
+                dict(name='ptr', size=8, kind='ACL_ARG_MEM_OBJ', rtl_bit_offset=32,
+                     pieces=[dict(byte_offset=128, register_bit_offset=32,
+                                  argument_bit_offset=0, bits=32),
+                             dict(byte_offset=136, register_bit_offset=0,
+                                  argument_bit_offset=32, bits=32)])]
+        return abi
+
+    def test_packed_widths_lanes_and_contract_identity(self):
+        abi = self.packed()
+        data = render(abi, True)
+        self.assertIn('{"ptr", 128, true, 8, {{128, 32, 0}, {136, 0, 32}}}', data)
+        self.assertEqual(data.count('CompletionAccounting::Unqualified'), 2)
+        digest = source_contract_sha256(abi)
+        changed = copy.deepcopy(abi)
+        changed['kernels'][0]['arguments'][1]['pieces'][1]['byte_offset'] = 144
+        self.assertNotEqual(digest, source_contract_sha256(changed))
+        mutations = [
+            lambda a: a.update(size=16),
+            lambda a: a.update(size=True),
+            lambda a: a.update(name='count'),
+            lambda a: a.update(name='bad-name'),
+            lambda a: a.update(size=4),
+            lambda a: a.update(rtl_bit_offset=64),
+            lambda a: a.update(kind='UNKNOWN'),
+            lambda a: a['pieces'].pop(),
+            lambda a: a['pieces'][0].update(bits=64),
+            lambda a: a['pieces'][0].update(register_bit_offset=16),
+            lambda a: a['pieces'][0].update(register_bit_offset=0),
+            lambda a: a['pieces'][0].update(byte_offset=8),
+            lambda a: a['pieces'][0].update(byte_offset=256),
+            lambda a: a['pieces'][0].update(byte_offset=129),
+            lambda a: a['pieces'][0].update(argument_bit_offset=True),
+            lambda a: a['pieces'][1].update(argument_bit_offset=0),
+            lambda a: a['pieces'][0].update(unrecognized=0),
+            lambda a: a.update(byte_offset=128),
+        ]
+        for mutation in mutations:
+            changed = copy.deepcopy(abi)
+            mutation(changed['kernels'][0]['arguments'][1])
+            with self.assertRaises(ValueError): render(changed, True)
+
+    def test_retained_stream_vector_extraction(self):
+        source = ROOT / 'qualification/sycl-stream-vector-v1/retrieved/workload-es3-early.prj'
+        if not source.is_dir():
+            self.skipTest('retained compiler source is local, not a public repository fixture')
+        abi = extract(source, packed=True)
+        data = render(abi, False)
+        self.assertIn('SourceValidation::Reextracted', data)
+        self.assertEqual([a['name'] for a in abi['kernels'][0]['arguments']],
+                         ['arg_count', 'arg_src', 'arg_dst'])
+        self.assertEqual(data.count('CompletionAccounting::Unqualified'), 2)
+        from packed_kernel_args import encode
+        self.assertEqual(encode(abi['kernels'][0], dict(
+            arg_count=17, arg_src=0x1122334455667788, arg_dst=0x1234567887654321)), [
+                dict(address=128, value=0x5566778800000011, byteenable=255),
+                dict(address=136, value=0x8765432111223344, byteenable=255),
+                dict(address=144, value=0x12345678, byteenable=15)])
+        with self.assertRaises(ValueError): extract(source)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'abi.inc'
+            subprocess.run([sys.executable, str(ROOT / 'tools/kernel_executor_codegen.py'),
+                            '--source', str(source), '--packed', '--output', str(output)],
+                           check=True)
+            self.assertEqual(output.read_text(), data)
 
     def test_duplicate_json_keys_rejected(self):
         with self.assertRaises(ValueError):

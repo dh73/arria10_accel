@@ -45,10 +45,11 @@ if(A10_BUILD_KERNEL_EXECUTOR)
       "Generated kernel snapshot containing the compiler XML and kernel_system.sv")
   option(A10_KERNEL_EXECUTOR_SNAPSHOT_ONLY
       "TEST ONLY: compile the supplied ABI snapshot without re-extracting generated RTL" OFF)
+  option(A10_KERNEL_EXECUTOR_PACKED "Extract schema 2 packed arguments from generated source" OFF)
   set(a10_repo "${CMAKE_CURRENT_SOURCE_DIR}/..")
   set(a10_codegen "${a10_repo}/tools/kernel_executor_codegen.py")
   if(A10_KERNEL_EXECUTOR_SNAPSHOT_ONLY)
-    if(A10_KERNEL_SOURCE_DIR)
+    if(A10_KERNEL_SOURCE_DIR OR A10_KERNEL_EXECUTOR_PACKED)
       message(FATAL_ERROR "Select generated source OR explicit test snapshot, not both")
     endif()
     message(WARNING "Kernel executor uses supplied source ABI snapshot; hardware use is unqualified")
@@ -63,12 +64,16 @@ if(A10_BUILD_KERNEL_EXECUTOR)
     file(GLOB_RECURSE a10_codegen_dependencies CONFIGURE_DEPENDS
       "${A10_KERNEL_SOURCE_DIR}/*.sv" "${A10_KERNEL_SOURCE_DIR}/*.bc.xml")
     set(a10_codegen_args --source "${A10_KERNEL_SOURCE_DIR}")
+    if(A10_KERNEL_EXECUTOR_PACKED)
+      list(APPEND a10_codegen_args --packed)
+    endif()
   endif()
   set(a10_abi_include "${CMAKE_CURRENT_BINARY_DIR}/generated/generated_kernel_abi_data.inc")
   add_custom_command(OUTPUT "${a10_abi_include}"
     COMMAND "${Python3_EXECUTABLE}" "${a10_codegen}" ${a10_codegen_args}
             --output "${a10_abi_include}"
     DEPENDS "${a10_codegen}" "${a10_repo}/tools/kernel_abi.py"
+            "${a10_repo}/tools/packed_kernel_args.py"
             ${a10_codegen_dependencies}
     VERBATIM)
   add_library(a10_generated_kernel_executor STATIC
@@ -79,7 +84,11 @@ if(A10_BUILD_KERNEL_EXECUTOR)
   target_link_libraries(a10_generated_kernel_executor PUBLIC Threads::Threads)
   target_compile_options(a10_generated_kernel_executor PRIVATE
     -Wall -Wextra -Wpedantic -Werror)
-  add_executable(a10_generated_kernel_executor_test tests/generated_kernel_executor_test.cpp)
+  if(A10_KERNEL_EXECUTOR_PACKED)
+    add_executable(a10_generated_kernel_executor_test tests/packed_kernel_executor_test.cpp)
+  else()
+    add_executable(a10_generated_kernel_executor_test tests/generated_kernel_executor_test.cpp)
+  endif()
   target_link_libraries(a10_generated_kernel_executor_test PRIVATE a10_generated_kernel_executor)
   target_compile_options(a10_generated_kernel_executor_test PRIVATE
     -Wall -Wextra -Wpedantic -Werror)

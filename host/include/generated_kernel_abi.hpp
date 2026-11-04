@@ -15,10 +15,17 @@ enum class SourceValidation { Reextracted, SuppliedSnapshot };
 // Source recurrence classification, not physical-image or read-clear authority.
 enum class CompletionAccounting { Unqualified, DelayedSnapshotV1 };
 
+struct ArgumentPiece {
+  std::uint32_t byte_offset;
+  std::uint8_t register_bit_offset, argument_bit_offset;  // Each piece is 32 bits.
+};
+
 struct ArgumentDescriptor {
   std::string_view name;
-  std::uint32_t byte_offset;
+  std::uint32_t byte_offset;  // First piece only; use pieces/writes for packed I/O.
   bool memory_object;
+  std::uint8_t size;
+  std::vector<ArgumentPiece> pieces;
 };
 
 struct KernelDescriptor {
@@ -63,9 +70,15 @@ class SourceAbi final {
 
 const SourceAbi& generated_abi();
 
-// No caller-supplied offsets or descriptors can create a launch. Argument
-// values are copied and retained in extracted RTL/XML order. Caller mutations
-// after make() cannot change the launch. Assignment/move mutation is disabled.
+struct ArgumentWrite {
+  std::uint32_t byte_offset;  // Aperture relative, including kernel base.
+  std::uint64_t value;
+  std::uint8_t byte_enable;
+};
+
+// No caller-supplied offsets or descriptors can create a launch. Values are
+// copied in extracted RTL/XML order; writes combine lanes in address order.
+// Caller mutations cannot change the launch; assignment/move is disabled.
 class Launch final {
  public:
   using NamedArguments = std::vector<std::pair<std::string, std::uint64_t>>;
@@ -76,12 +89,15 @@ class Launch final {
   const SourceAbi& source() const noexcept { return generated_abi(); }
   const KernelDescriptor& descriptor() const noexcept { return *kernel_; }
   const std::vector<std::uint64_t>& arguments() const noexcept { return values_; }
+  const std::vector<ArgumentWrite>& writes() const noexcept { return writes_; }
 
  private:
-  Launch(const KernelDescriptor& kernel, std::vector<std::uint64_t> values)
-      : kernel_(&kernel), values_(std::move(values)) {}
+  Launch(const KernelDescriptor& kernel, std::vector<std::uint64_t> values,
+         std::vector<ArgumentWrite> writes)
+      : kernel_(&kernel), values_(std::move(values)), writes_(std::move(writes)) {}
   const KernelDescriptor* const kernel_;
   const std::vector<std::uint64_t> values_;
+  const std::vector<ArgumentWrite> writes_;
 };
 
 }  // namespace asus::a10::kernel

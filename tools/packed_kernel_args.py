@@ -4,11 +4,17 @@ import re
 
 def extract_arguments(kernel, wrapper, agent, constant, size, reserved, one, require):
     args, occupied, bit = [], set(), 0
+    names = set()
     for arg in kernel.iter('ARGUMENT'):
         name = arg.get('name')
-        require(re.fullmatch(r'[A-Za-z0-9_]+', name or ''), 'invalid argument name')
+        require(re.fullmatch(r'[A-Za-z0-9_]+', name or '') and name not in names,
+                'invalid/duplicate argument name')
+        names.add(name)
         n = int(arg.get('size', '0'))
         require(n in (4, 8) and arg.get('is_streaming') == 'false', 'unsupported packed argument')
+        kind = arg.get('opencl_type_category')
+        require(kind in ('ACL_ARG_BY_VALUE', 'ACL_ARG_MEM_OBJ'), 'unsupported argument kind')
+        require(kind != 'ACL_ARG_MEM_OBJ' or n == 8, 'unsupported pointer width')
         high, low = map(int, one(r'assign\s+arg_'+re.escape(name)+r'_select_b\s*=\s*kernel_arguments\[(\d+):(\d+)\];', wrapper))
         require(low == bit and high == bit + n*8-1, 'XML/RTL packed argument order mismatch')
         pieces = []

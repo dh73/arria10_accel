@@ -223,6 +223,15 @@ void test_abi() {
   auto copied = Launch::make(d.name, args);
   CHECK(copied);
   for (std::size_t i = 0; i < d.arguments.size(); ++i) CHECK(copied->arguments()[i] == i);
+  CHECK(copied->writes().size() == d.arguments.size());
+  for (std::size_t i = 0; i < d.arguments.size(); ++i) {
+    CHECK(copied->writes()[i].byte_offset == d.base + d.arguments[i].byte_offset);
+    CHECK(copied->writes()[i].value == i && copied->writes()[i].byte_enable == 255);
+  }
+  for (auto& arg : args) arg.second = UINT64_MAX;
+  auto full_width = Launch::make(d.name, args);
+  CHECK(full_width);
+  for (const auto& word : full_width->writes()) CHECK(word.value == UINT64_MAX);
   args[0].second = 999;
   CHECK(copied->arguments().back() == d.arguments.size() - 1);
   CHECK(!Launch::make("unknown", args));

@@ -163,11 +163,10 @@ class RetirementOwner::Impl final {
       if (count != 0) return fault(Code::ProtocolError);
     }
     const auto& kernel = record->launch.descriptor();
-    for (std::size_t i = 0; i != kernel.arguments.size(); ++i) {
+    for (const auto& write : record->launch.writes()) {
       if (!request(Phase::Argument, req)) return result(Code::SequenceExhausted);
-      if (!check(req, transport->write64(req,
-              kernel.base + kernel.arguments[i].byte_offset,
-              record->launch.arguments()[i]), failure)) return result(failure);
+      if (!check(req, transport->write64_masked(req, write.byte_offset,
+              write.value, write.byte_enable), failure)) return result(failure);
     }
     if (!fence(Phase::BeforeStart, failure)) return result(failure);
     if (!request(Phase::Start, req)) return result(Code::SequenceExhausted);

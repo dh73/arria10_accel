@@ -89,6 +89,14 @@ class Transport {
   // are aperture-relative, never BAR offsets. No splitting/replay of start.
   virtual IoReply write64(Request, std::uint32_t offset,
                           std::uint64_t value) noexcept = 0;
+  // One CRA write with these byte lanes enabled. Never emulate a partial
+  // write with read-modify-write, widened stores or replay. Legacy adapters
+  // accept full masks only; partial masks fail before issuing any transaction.
+  virtual IoReply write64_masked(Request request, std::uint32_t offset,
+                                std::uint64_t value, std::uint8_t byte_enable) noexcept {
+    if (byte_enable == 0xff) return write64(request, offset, value);
+    return {request, IoOutcome::NotIssued, 0};
+  }
   // Exactly one device read-clear transaction. A replayed RPC response must
   // retain its original Request; the adapter must not relabel it as fresh.
   virtual IoReply read64(Request, std::uint32_t offset) noexcept = 0;

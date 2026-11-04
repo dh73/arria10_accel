@@ -31,7 +31,7 @@ def integer(value):
 
 def validate(abi):
     require(isinstance(abi, dict), "ABI must be an object")
-    require(abi.get("schema") == 1 and type(abi.get("schema")) is int,
+    require(abi.get("schema") in (1, 2) and type(abi.get("schema")) is int,
             "unsupported ABI schema")
     require(abi.get("scope") == "generated source only; loaded image not verified",
             "source-only identity scope required")
@@ -59,7 +59,9 @@ def validate(abi):
                 kernel.get("finish_count_clear_on_read") is True,
                 "unsupported control/count contract")
         args = kernel.get("arguments")
-        require(isinstance(args, list) and len(args) == 13, "expected thirteen arguments")
+        require(isinstance(args, list) and (len(args) == 13 if abi["schema"] == 1 else 0 < len(args) <= 32),
+                "unsupported argument count")
+        occupied, bit = set(), 0
         argument_names = set()
         for index, argument in enumerate(args):
             require(isinstance(argument, dict), "argument must be an object")
@@ -67,13 +69,37 @@ def validate(abi):
             require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_]+", name)
                     and name not in argument_names, "invalid/duplicate argument name")
             argument_names.add(name)
-            for field in ("byte_offset", "size", "rtl_bit_offset"):
-                require(integer(argument.get(field)), "non-integer argument field: " + field)
-            require(argument["byte_offset"] == 128 + index * 8 and
-                    argument["size"] == 8 and argument["rtl_bit_offset"] == index * 64,
-                    "unsupported argument layout/order")
             require(argument.get("kind") in ("ACL_ARG_BY_VALUE", "ACL_ARG_MEM_OBJ"),
                     "unsupported argument kind")
+            for field in ("size", "rtl_bit_offset"):
+                require(integer(argument.get(field)), "non-integer argument field: " + field)
+            if abi["schema"] == 1:
+                require(integer(argument.get("byte_offset")) and
+                        argument["byte_offset"] == 128 + index * 8 and
+                        argument["size"] == 8 and argument["rtl_bit_offset"] == index * 64,
+                        "unsupported argument layout/order")
+            else:
+                require(argument["size"] in (4, 8) and argument["rtl_bit_offset"] == bit,
+                        "unsupported packed argument width/order")
+                require(argument["kind"] != "ACL_ARG_MEM_OBJ" or argument["size"] == 8,
+                        "unsupported pointer width")
+                pieces = argument.get("pieces")
+                require(isinstance(pieces, list) and len(pieces) == argument["size"] // 4,
+                        "incomplete packed argument")
+                for half, piece in enumerate(pieces):
+                    require(isinstance(piece, dict) and set(piece) == {
+                        "byte_offset", "register_bit_offset", "argument_bit_offset", "bits"},
+                        "unsupported packed piece fields")
+                    require(all(integer(value) for value in piece.values()),
+                            "non-integer packed piece")
+                    offset, lane = piece["byte_offset"], piece["register_bit_offset"]
+                    require(piece["bits"] == 32 and piece["argument_bit_offset"] == half * 32
+                            and lane in (0, 32), "unsupported packed piece width/lane/order")
+                    require(offset % 8 == 0 and 128 <= offset <= kernel["size"] - 8,
+                            "reserved/out-of-range packed register")
+                    require((offset, lane) not in occupied, "overlapping packed piece")
+                    occupied.add((offset, lane))
+                bit += argument["size"] * 8
     hashes = abi.get("source_sha256")
     require(isinstance(hashes, dict) and len(hashes) == 6,
             "expected XML, top, and both wrapper/agent source identities")
@@ -107,7 +133,7 @@ def cpp_string(value):
 
 
 def source_contract(abi):
-    """Canonical v1 source identity; unsupported metadata is not silently ignored."""
+    """Canonical source identity; unsupported metadata is not silently ignored."""
     validate(abi)
     require(set(abi) == {"schema", "scope", "cra_aperture_bytes", "kernels",
                          "source_sha256"}, "unsupported ABI fields")
@@ -119,8 +145,9 @@ def source_contract(abi):
         require(required <= set(item) <= required | {"completion_accounting"},
                 "unsupported kernel fields")
         for argument in item["arguments"]:
-            require(set(argument) == {"name", "byte_offset", "size", "kind",
-                                      "rtl_bit_offset"}, "unsupported argument fields")
+            require(set(argument) == {"name", "size", "kind", "rtl_bit_offset",
+                                      "byte_offset" if abi["schema"] == 1 else "pieces"},
+                    "unsupported argument fields")
         kernel = dict(item)
         kernel["completion_accounting"] = item.get("completion_accounting", "unqualified")
         kernels.append(kernel)
@@ -150,8 +177,17 @@ def render(abi, snapshot):
                 "base", "size", "start_offset", "status_offset", "finish_count_offset",
                 "finished_bit", "finish_count_bits"))))
         for argument in kernel["arguments"]:
-            lines.append("    {%s, %d, %s}," % (cpp_string(argument["name"]),
-                argument["byte_offset"], "true" if argument["kind"] == "ACL_ARG_MEM_OBJ" else "false"))
+            pieces = argument.get("pieces", [
+                dict(byte_offset=argument.get("byte_offset"), register_bit_offset=0,
+                     argument_bit_offset=0, bits=32),
+                dict(byte_offset=argument.get("byte_offset"), register_bit_offset=32,
+                     argument_bit_offset=32, bits=32)])
+            lines.append("    {%s, %d, %s, %d, {%s}}," % (
+                cpp_string(argument["name"]), pieces[0]["byte_offset"],
+                "true" if argument["kind"] == "ACL_ARG_MEM_OBJ" else "false",
+                argument["size"], ", ".join("{%d, %d, %d}" % (
+                    p["byte_offset"], p["register_bit_offset"], p["argument_bit_offset"])
+                    for p in pieces)))
         profile = ('DelayedSnapshotV1' if kernel.get('completion_accounting') ==
                    'delayed_snapshot_v1' else 'Unqualified')
         lines.append("  }, CompletionAccounting::%s}," % profile)
@@ -168,11 +204,14 @@ def main():
     mode.add_argument("--source", type=Path)
     mode.add_argument("--snapshot", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--packed", action="store_true",
+                        help="extract schema 2 packed 32/64-bit arguments from source")
     args = parser.parse_args()
     if args.source is not None:
         from kernel_abi import extract
-        abi = extract(args.source)
+        abi = extract(args.source, packed=args.packed)
     else:
+        require(not args.packed, "--packed requires --source; snapshot schema is explicit")
         abi = json.loads(args.snapshot.read_text(), object_pairs_hook=unique_object)
     content = render(abi, args.snapshot is not None)
     args.output.parent.mkdir(parents=True, exist_ok=True)
