@@ -162,12 +162,12 @@ def write_new(path, data):
         os.unlink(temporary)
 
 
-def prepare(source, plan_path, root, out):
+def prepare(source, plan_path, root, out, *, packed=False):
     source, root = Path(source).resolve(strict=True), Path(root).resolve(strict=True)
     out = Path(out).absolute()
     require(not out.exists() and not out.is_symlink(), "output must be a new directory")
     require(not out.resolve().is_relative_to(source), "output is inside source snapshot")
-    abi = abi_codegen.source_contract(kernel_abi.extract(source))
+    abi = abi_codegen.source_contract(kernel_abi.extract(source, packed=packed))
     plan = validate_plan(read_json(plan_path), abi["cra_aperture_bytes"])
     inputs, resolved = {}, set()
     for name in sorted(set(plan["inputs"]) | {AUTO_INPUT}):
@@ -252,6 +252,8 @@ def main():
     p = commands.add_parser("prepare")
     for name in ("source", "plan", "root", "out"):
         p.add_argument("--" + name, type=Path, required=True)
+    p.add_argument("--packed", action="store_true",
+                   help="extract packed 32/64-bit compiler argument registers")
     for command in ("bind", "check"):
         p = commands.add_parser(command)
         p.add_argument("--prepared", type=Path, required=True)
@@ -259,7 +261,7 @@ def main():
         p.add_argument("--output" if command == "bind" else "--record", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "prepare":
-        prepare(args.source, args.plan, args.root, args.out)
+        prepare(args.source, args.plan, args.root, args.out, packed=args.packed)
     elif args.command == "bind":
         bind(args.prepared, args.bitstream, args.output)
     else:

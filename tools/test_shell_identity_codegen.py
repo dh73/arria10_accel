@@ -69,6 +69,28 @@ class IdentityCodegenTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 abi_codegen.source_contract_sha256(bad)
 
+    def test_retained_packed_source_identity(self):
+        source = ROOT / 'qualification/sycl-stream-masked-host-abi-v1/source'
+        if not source.is_dir():
+            self.skipTest('retained compiler sources are not public fixtures')
+        self.plan_path.write_bytes(identity.encoded(self.plan))
+        with self.assertRaises(ValueError):
+            identity.prepare(source, self.plan_path, self.root, self.out)
+        self.assertFalse(self.out.exists())
+        actual = identity.kernel_abi.extract(source, packed=True)
+        manifest = identity.prepare(source, self.plan_path, self.root, self.out,
+                                    packed=True)
+        self.assertEqual(manifest['abi']['schema'], 2)
+        self.assertEqual(manifest['source_sha256'],
+                         abi_codegen.source_contract_sha256(actual))
+        self.assertEqual(identity.load_prepared(self.out), manifest)
+        self.assertEqual([a['alignment_bytes'] for a in
+                          actual['kernels'][0]['arguments']], [1, 64, 64])
+        bad = copy.deepcopy(actual)
+        del bad['kernels'][0]['arguments'][0]['alignment_bytes']
+        with self.assertRaises(ValueError):
+            abi_codegen.source_contract_sha256(bad)
+
     def test_shapes_ranges_paths_and_no_partial_publication(self):
         mutations = [
             lambda p: p.update(schema=True),
